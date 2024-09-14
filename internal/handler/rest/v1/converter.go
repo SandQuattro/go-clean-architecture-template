@@ -6,7 +6,7 @@ import (
 
 func ToUserListOutputFromEntity(users []entity.User) ListUserResponse {
 	return ListUserResponse{
-		Users: users,
+		Body: struct{ Users []entity.User }{Users: users},
 	}
 }
 

@@ -28,8 +28,8 @@ func (uh *UserHandler) ListUsers(ctx context.Context, req *ListUserRequest) (*Li
 	defer span.End()
 
 	cmd := usecase.FindAllUsersCommand{
-		Page: req.Body.Page,
-		Size: req.Body.Size,
+		Page: req.Page,
+		Size: req.Size,
 	}
 
 	users, err := uh.userUC.FindAllUsers(ctx, cmd)
@@ -37,7 +37,7 @@ func (uh *UserHandler) ListUsers(ctx context.Context, req *ListUserRequest) (*Li
 		return nil, err
 	}
 
-	return &ListUserResponse{Users: users}, nil
+	return &ListUserResponse{Body: struct{ Users []entity.User }{Users: users}}, nil
 }
 
 func (uh *UserHandler) FindUserByID(ctx context.Context, req *FindUserRequest) (*UserResponse, error) {
@@ -68,7 +68,7 @@ func (uh *UserHandler) CreateUser(ctx context.Context, req *UserRequest) (*UserR
 	_, span := tracer.Start(ctx, "CreateUser", trace.WithSpanKind(trace.SpanKindServer))
 	defer span.End()
 
-	cmd := usecase.CreateUpdateDeleteUserCommand{User: req.Body.User}
+	cmd := usecase.CreateUpdateUserCommand{User: req.Body.User}
 
 	user, err := uh.userUC.CreateUser(ctx, cmd)
 	if err != nil {
@@ -82,16 +82,16 @@ func (uh *UserHandler) CreateUser(ctx context.Context, req *UserRequest) (*UserR
 	return resp, nil
 }
 
-func (uh *UserHandler) UpdateUser(ctx context.Context, req *UserRequest) (*UserResponse, error) {
+func (uh *UserHandler) UpdateUser(ctx context.Context, req *UpdateUserRequest) (*UserResponse, error) {
 	tracer := otel.Tracer(tracerName)
 	_, span := tracer.Start(ctx, "UpdateUser", trace.WithSpanKind(trace.SpanKindServer))
 	defer span.End()
 
-	cmd := usecase.CreateUpdateDeleteUserCommand{User: req.Body.User}
+	cmd := usecase.CreateUpdateUserCommand{User: req.Body.User}
 
 	user, err := uh.userUC.UpdateUser(ctx, cmd)
 
-	if err == nil {
+	if err != nil {
 		return nil, huma.Error500InternalServerError("update user error. ", err)
 	}
 
@@ -102,12 +102,12 @@ func (uh *UserHandler) UpdateUser(ctx context.Context, req *UserRequest) (*UserR
 	return resp, nil
 }
 
-func (uh *UserHandler) DeleteUser(ctx context.Context, req *UserRequest) (*struct{}, error) {
+func (uh *UserHandler) DeleteUser(ctx context.Context, req *FindUserRequest) (*struct{}, error) {
 	tracer := otel.Tracer(tracerName)
 	_, span := tracer.Start(ctx, "DeleteUser", trace.WithSpanKind(trace.SpanKindServer))
 	defer span.End()
 
-	cmd := usecase.CreateUpdateDeleteUserCommand{User: req.Body.User}
+	cmd := usecase.DeleteUserByIDCommand{ID: req.ID}
 
 	err := uh.userUC.DeleteUser(ctx, cmd)
 	if err != nil {

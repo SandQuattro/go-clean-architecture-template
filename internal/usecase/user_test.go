@@ -178,7 +178,7 @@ func TestCreateUser(t *testing.T) {
 
 			result, err := userUseCase.CreateUser(
 				context.Background(),
-				CreateUpdateDeleteUserCommand{User: tc.user})
+				CreateUpdateUserCommand{User: tc.user})
 
 			require.Equal(t, tc.expected, result)
 			require.ErrorIs(t, err, tc.err)

@@ -37,7 +37,7 @@ func (m *MockUserUseCase) EXPECT() *MockUserUseCaseMockRecorder {
 }
 
 // CreateUser mocks base method.
-func (m *MockUserUseCase) CreateUser(ctx context.Context, cmd usecase.CreateUpdateDeleteUserCommand) (*entity.User, error) {
+func (m *MockUserUseCase) CreateUser(ctx context.Context, cmd usecase.CreateUpdateUserCommand) (*entity.User, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateUser", ctx, cmd)
 	ret0, _ := ret[0].(*entity.User)
@@ -52,7 +52,7 @@ func (mr *MockUserUseCaseMockRecorder) CreateUser(ctx, cmd interface{}) *gomock.
 }
 
 // DeleteUser mocks base method.
-func (m *MockUserUseCase) DeleteUser(ctx context.Context, cmd usecase.CreateUpdateDeleteUserCommand) error {
+func (m *MockUserUseCase) DeleteUser(ctx context.Context, cmd usecase.DeleteUserByIDCommand) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteUser", ctx, cmd)
 	ret0, _ := ret[0].(error)
@@ -96,7 +96,7 @@ func (mr *MockUserUseCaseMockRecorder) FindUserByID(ctx, cmd interface{}) *gomoc
 }
 
 // UpdateUser mocks base method.
-func (m *MockUserUseCase) UpdateUser(ctx context.Context, cmd usecase.CreateUpdateDeleteUserCommand) (*entity.User, error) {
+func (m *MockUserUseCase) UpdateUser(ctx context.Context, cmd usecase.CreateUpdateUserCommand) (*entity.User, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateUser", ctx, cmd)
 	ret0, _ := ret[0].(*entity.User)

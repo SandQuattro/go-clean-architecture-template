@@ -12,7 +12,11 @@ type (
 		ID int
 	}
 
-	CreateUpdateDeleteUserCommand struct {
+	CreateUpdateUserCommand struct {
 		User entity.User
+	}
+
+	DeleteUserByIDCommand struct {
+		ID int
 	}
 )

@@ -11,7 +11,7 @@ import (
 type UserUseCase interface {
 	FindAllUsers(ctx context.Context, cmd usecase.FindAllUsersCommand) ([]entity.User, error)
 	FindUserByID(ctx context.Context, cmd usecase.FindUserByIDCommand) (*entity.User, error)
-	CreateUser(ctx context.Context, cmd usecase.CreateUpdateDeleteUserCommand) (*entity.User, error)
-	UpdateUser(ctx context.Context, cmd usecase.CreateUpdateDeleteUserCommand) (*entity.User, error)
-	DeleteUser(ctx context.Context, cmd usecase.CreateUpdateDeleteUserCommand) error
+	CreateUser(ctx context.Context, cmd usecase.CreateUpdateUserCommand) (*entity.User, error)
+	UpdateUser(ctx context.Context, cmd usecase.CreateUpdateUserCommand) (*entity.User, error)
+	DeleteUser(ctx context.Context, cmd usecase.DeleteUserByIDCommand) error
 }

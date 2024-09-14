@@ -91,13 +91,11 @@ func (r *UserRepository) InsertUser(ctx context.Context, input *entity.User) (*e
 }
 
 func (r *UserRepository) UpdateUser(ctx context.Context, input *entity.User) (*entity.User, error) {
-	var user entity.User
 	_, err := r.db.Exec(ctx, "UPDATE users SET name = $2 WHERE id = $1", input.ID, input.Name)
 	if err != nil {
 		return nil, err
 	}
-
-	return &user, nil
+	return input, nil
 }
 
 func (r *UserRepository) DeleteUser(ctx context.Context, input *entity.User) error {

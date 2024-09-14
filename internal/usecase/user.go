@@ -4,11 +4,14 @@ import (
 	// !!! NO UPSTREAM DEPENDENCIES HERE, ONLY ENTITY/DOMAIN !!!
 	"clean-arch-template/internal/entity"
 	"context"
+	"errors"
 )
 
 type UserUseCase struct {
 	userRepo UserRepository
 }
+
+var ErrUserNotFound = errors.New("user not found")
 
 func NewUserUseCase(ur UserRepository) *UserUseCase {
 	return &UserUseCase{userRepo: ur}
@@ -40,20 +43,34 @@ func (uc *UserUseCase) FindUserByID(ctx context.Context, cmd FindUserByIDCommand
 	return user, nil
 }
 
-func (uc *UserUseCase) CreateUser(ctx context.Context, cmd CreateUpdateDeleteUserCommand) (*entity.User, error) {
+func (uc *UserUseCase) CreateUser(ctx context.Context, cmd CreateUpdateUserCommand) (*entity.User, error) {
 	user, err := uc.userRepo.InsertUser(ctx, &cmd.User)
 	if err != nil {
 		return nil, err
 	}
 	return user, nil
 }
-func (uc *UserUseCase) UpdateUser(ctx context.Context, cmd CreateUpdateDeleteUserCommand) (*entity.User, error) {
+func (uc *UserUseCase) UpdateUser(ctx context.Context, cmd CreateUpdateUserCommand) (*entity.User, error) {
+	userByID, err := uc.FindUserByID(ctx, FindUserByIDCommand{ID: cmd.User.ID})
+	if err != nil {
+		return nil, err
+	}
+	if userByID == nil {
+		return nil, ErrUserNotFound
+	}
 	user, err := uc.userRepo.UpdateUser(ctx, &cmd.User)
 	if err != nil {
 		return nil, err
 	}
 	return user, nil
 }
-func (uc *UserUseCase) DeleteUser(ctx context.Context, cmd CreateUpdateDeleteUserCommand) error {
-	return uc.userRepo.DeleteUser(ctx, &cmd.User)
+func (uc *UserUseCase) DeleteUser(ctx context.Context, cmd DeleteUserByIDCommand) error {
+	userByID, err := uc.FindUserByID(ctx, FindUserByIDCommand{ID: cmd.ID})
+	if err != nil {
+		return err
+	}
+	if userByID == nil {
+		return ErrUserNotFound
+	}
+	return uc.userRepo.DeleteUser(ctx, userByID)
 }
