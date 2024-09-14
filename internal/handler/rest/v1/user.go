@@ -48,11 +48,12 @@ func (uh *UserHandler) FindUserByID(ctx context.Context, req *FindUserRequest) (
 	cmd := usecase.FindUserByIDCommand{ID: req.ID}
 
 	user, err := uh.userUC.FindUserByID(ctx, cmd)
-	if err == nil {
-		return nil, huma.Error500InternalServerError("getting user by id error. ", err)
-	}
-	if user == nil {
+	if user == nil && err == nil {
 		return nil, huma.Error404NotFound("user not found")
+	}
+
+	if err != nil {
+		return nil, huma.Error500InternalServerError("getting user by id error. ", err)
 	}
 
 	resp := &UserResponse{
