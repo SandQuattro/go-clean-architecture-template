@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: demo
+      #PGPORT: 5433 # if we want to change pg default port
+    volumes:
+      - ${PWD}/pg_volume/volumes/postgres:/var/lib/postgresql/data # link container folder to host machine folder
+    expose:
+      - "5433" # Publishes 5433 to other containers but NOT to host machine
+    ports:
+      - "5433:5432"
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 9000:8000
+    environment:
+      DEBUG: true
+      DB_PASSWORD: ${DB_PASSWORD}
+      ENV_NAME: ${ENV_NAME}
+      GOMEMLIMIT: "7MiB" # устанавливает общий объем памяти, которым может пользоваться Go runtime (90-95% от limit)
+      GOGC: 100 # процент новой необработанной памяти кучи от живой памяти, по достижении которого будет запущена сборка мусора
+    deploy:
+      resources:
+        limits:
+          memory: 8M # абсолютное ограничение по использованию памяти в контейнере
+    depends_on:
+      - postgres
+  integration-tests:
+    build:
+      context: .
+      dockerfile: integration-test/Dockerfile
+    depends_on:
+      - app
+    environment:
+      - HOST=app
+      - PORT=8000
