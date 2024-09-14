@@ -29,13 +29,15 @@ services:
         limits:
           memory: 8M # абсолютное ограничение по использованию памяти в контейнере
     depends_on:
-      - postgres
+      postgres:
+        condition: service_started
   integration-tests:
     build:
       context: .
       dockerfile: integration-test/Dockerfile
     depends_on:
-      - app
+      app:
+        condition: service_started
     environment:
       - HOST=app
       - PORT=8000
