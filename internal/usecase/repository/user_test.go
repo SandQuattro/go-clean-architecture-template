@@ -120,7 +120,7 @@ func TestUserRepository(t *testing.T) {
 		mockDb, repo := newMockDB()
 		defer mockDb.Close(context.Background())
 
-		mockDb.ExpectQuery("SELECT id, name FROM users").
+		mockDb.ExpectQuery("SELECT u.id, u.name, o.id as order_id, o.amount as order_amount FROM users").
 			WithArgs(0, 10).
 			WillReturnRows(pgxmock.NewRows([]string{"id", "name"}).AddRow(1, "John"))
 
@@ -132,18 +132,21 @@ func TestUserRepository(t *testing.T) {
 		require.NoError(t, mockDb.ExpectationsWereMet())
 	})
 
+	// TODO fix test
 	t.Run("GetUserByID", func(t *testing.T) {
+		id := 1
 		mockDb, repo := newMockDB()
 		defer mockDb.Close(context.Background())
 
-		mockDb.ExpectQuery("SELECT id, name FROM users").
-			WithArgs(1).
+		mockDb.ExpectQuery("SELECT u.id, u.name, o.id as order_id, o.amount as order_amount FROM users").
+			WithArgs(id).
 			WillReturnRows(pgxmock.NewRows([]string{"id", "name"}).AddRow(1, "John"))
 
-		user, err := repo.GetUserByID(ctx, 1)
+		user, err := repo.GetUserByID(ctx, id)
+
 		require.NoError(t, err)
 		require.NotNil(t, user)
-		require.Equal(t, 1, user.ID)
+		assert.Equal(t, user.ID, id)
 
 		// Проверка, что не было вызовов к базе данных
 		require.NoError(t, mockDb.ExpectationsWereMet())
