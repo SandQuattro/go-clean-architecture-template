@@ -35,16 +35,18 @@ func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 	userMap := make(map[int]*entity.User)
 	var users []*entity.User
 
-	rows, err := r.db.Query(ctx, `SELECT u.id,
-											 u.name,
-											 o.id     as order_id,
-											 o.amount as order_amount
-									    FROM users u
-								   LEFT JOIN orders o ON u.id = o.user_id
-									   ORDER BY u.id, o.id
-									  OFFSET $1 LIMIT $2
-										
-    `, offset, limit)
+	query := `
+		SELECT u.id,
+			   u.name,
+			   o.id     as order_id,
+			   o.amount as order_amount
+		FROM users u
+   		LEFT JOIN orders o ON u.id = o.user_id
+		ORDER BY u.id, o.id
+		OFFSET $1 LIMIT $2
+	`
+
+	rows, err := r.db.Query(ctx, query, offset, limit)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -99,12 +101,16 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id int) (*entity.User,
 		orderAmount pgtype.Int4
 	)
 
-	rows, err := r.db.Query(ctx, `SELECT u.id, 
-       									     u.name, 
-       									     o.id as order_id, 
-       									     o.amount as order_amount 
-								        FROM users u LEFT JOIN orders o ON u.id = o.user_id 
-								       WHERE u.id=$1`, id)
+	query := `
+		SELECT u.id, 
+			   u.name, 
+			   o.id as order_id, 
+			   o.amount as order_amount 
+		FROM users u LEFT JOIN orders o ON u.id = o.user_id 
+	   WHERE u.id=$1
+	`
+
+	rows, err := r.db.Query(ctx, query, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
