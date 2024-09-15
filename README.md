@@ -49,5 +49,6 @@ export DB_PASSWORD=<pass> ENV_NAME=dev && make dc
 - [x] Добавить fuzzing тесты
 - [x] Добавить integration тесты
 - [ ] Добавить unit тесты на слой handler
-- [ ] Добавить интеграционных тестов
+- [ ] Добавить еще интеграционных тестов
 - [ ] Привести все тесты в порядок, добавить покрытие
+- [ ] Добавить prometheus и grafana в docker-compose

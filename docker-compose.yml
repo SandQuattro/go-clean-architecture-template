@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:13
+    image: postgres:14
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: admin
@@ -12,6 +12,23 @@ services:
       - "5433" # Publishes 5433 to other containers but NOT to host machine
     ports:
       - "5433:5432"
+    healthcheck:
+      test: pg_isready -U $$POSTGRES_USER -d $${POSTGRES_DB}
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+  jaeger:
+    image: jaegertracing/all-in-one:1.61.0
+    container_name: jaeger
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686" # http://localhost:16686 Jaeger UI
+      - "14268:14268"
+      - "4317:4317"
   app:
     build:
       context: .
@@ -30,6 +47,8 @@ services:
           memory: 8M # абсолютное ограничение по использованию памяти в контейнере
     depends_on:
       postgres:
+        condition: service_healthy
+      jaeger:
         condition: service_started
   integration-tests:
     build:

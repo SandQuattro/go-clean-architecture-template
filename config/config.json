@@ -7,7 +7,7 @@
     "port": "8000"
   },
   "tracing": {
-    "url": "jaeger-collector.tracing:4317"
+    "url": "jaeger:4317"
   },
   "db": {
     "host": "postgres",

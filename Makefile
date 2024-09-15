@@ -7,9 +7,14 @@ PATH := $(PROJECT_BIN):$(PATH)
 dc:
 	docker-compose up --remove-orphans --build
 
+.PHONY: cleandc
+cleandc:
+	rm -rf pg_volume
+	docker-compose up --remove-orphans --build
+
 .PHONY: postgres-init
 postgres-init:
-	docker run --name postgres -p 5433:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=admin -d postgres:15-alpine
+	docker run --name postgres -p 5433:5432 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=admin -d postgres:15-alpine
 
 .PHONY: postgres-drop
 postgres-drop:
@@ -22,7 +27,7 @@ postgres:
 
 .PHONY: create-db
 create-db:
-	docker exec -it postgres createdb --username=root --owner=root demo
+	docker exec -it postgres createdb --username=postgres --owner=postgres demo
 
 .PHONY: drop-db
 drop-db:
