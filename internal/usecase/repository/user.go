@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"log/slog"
 	"sync"
 	"unicode/utf8"
@@ -30,32 +31,80 @@ func NewUserRepository(once *sync.Once, db database.Database) *UserRepository {
 }
 
 func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]entity.User, error) {
-	users := make([]entity.User, 0)
+	// Инициализируем карту пользователей и слайс для сохранения порядка
+	userMap := make(map[int]*entity.User)
+	var users []*entity.User
 
-	rows, err := r.db.Query(ctx, "SELECT id, name FROM users OFFSET $1 LIMIT $2", offset, limit)
+	rows, err := r.db.Query(ctx, `SELECT u.id,
+											 u.name,
+											 o.id     as order_id,
+											 o.amount as order_amount
+									    FROM users u
+								   LEFT JOIN orders o ON u.id = o.user_id
+									   ORDER BY u.id, o.id
+									  OFFSET $1 LIMIT $2
+										
+    `, offset, limit)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var user entity.User
-	for rows.Next() {
-		err = rows.Scan(&user.ID, &user.Name)
-		if err != nil {
-			return nil, err
+	var (
+		userID      int
+		userName    string
+		orderID     pgtype.Int4
+		orderAmount pgtype.Int4
+	)
+
+	_, err = pgx.ForEachRow(rows, []any{&userID, &userName, &orderID, &orderAmount}, func() error {
+		// Проверяем, существует ли пользователь в map
+		var user *entity.User
+
+		user, exists := userMap[userID]
+		if !exists {
+			user = &entity.User{
+				ID:     userID,
+				Name:   userName,
+				Orders: make([]entity.Order, 0),
+			}
+			userMap[userID] = user
+			users = append(users, user)
 		}
-		users = append(users, user)
+
+		err = fillUserOrders(user, orderID, orderAmount)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	// Преобразуем слайс указателей на пользователей в слайс значений
+	result := make([]entity.User, len(users))
+	for i, u := range users {
+		result[i] = *u
 	}
 
-	return users, nil
+	return result, nil
 }
 
 func (r *UserRepository) GetUserByID(ctx context.Context, id int) (*entity.User, error) {
 	var user entity.User
-	err := r.db.QueryRow(ctx, "SELECT id, name FROM users WHERE id=$1", id).Scan(&user.ID, &user.Name)
+
+	var (
+		orderID     pgtype.Int4
+		orderAmount pgtype.Int4
+	)
+
+	rows, err := r.db.Query(ctx, `SELECT u.id, 
+       									     u.name, 
+       									     o.id as order_id, 
+       									     o.amount as order_amount 
+								        FROM users u LEFT JOIN orders o ON u.id = o.user_id 
+								       WHERE u.id=$1`, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -63,6 +112,16 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id int) (*entity.User,
 	if err != nil {
 		return nil, err
 	}
+
+	_, err = pgx.ForEachRow(rows, []any{&user.ID, &user.Name, &orderID, &orderAmount}, func() error {
+		err = fillUserOrders(&user, orderID, orderAmount)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
 	return &user, nil
 }
 
@@ -102,6 +161,44 @@ func (r *UserRepository) DeleteUser(ctx context.Context, input *entity.User) err
 	_, err := r.db.Exec(ctx, "DELETE FROM users WHERE id = $1", input.ID)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func fillUserOrders(user *entity.User, orderID pgtype.Int4, orderAmount pgtype.Int4) error {
+	// Если заказ не NULL, обрабатываем его
+	if orderID.Valid {
+		id, err := orderID.Int64Value()
+		if err != nil {
+			return err
+		}
+		// Ищем или добавляем заказ у пользователя
+		var order *entity.Order
+		orderFound := false
+
+		for i := range user.Orders {
+			if user.Orders[i].ID == id.Int64 {
+				order = &user.Orders[i]
+				orderFound = true
+				break
+			}
+		}
+
+		if !orderFound {
+			amount, e := orderAmount.Int64Value()
+			if e != nil {
+				return e
+			}
+
+			order = &entity.Order{
+				ID:     id.Int64,
+				UserID: int64(user.ID),
+				Amount: amount.Int64,
+			}
+		}
+
+		user.Orders = append(user.Orders, *order)
 	}
 
 	return nil
