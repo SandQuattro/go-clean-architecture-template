@@ -36,7 +36,7 @@ services:
     ports:
       - 9000:8000
     environment:
-      DEBUG: true
+      DEBUG: ${DEBUG}
       DB_PASSWORD: ${DB_PASSWORD}
       ENV_NAME: ${ENV_NAME}
       GOMEMLIMIT: "7MiB" # устанавливает общий объем памяти, которым может пользоваться Go runtime (90-95% от limit)
