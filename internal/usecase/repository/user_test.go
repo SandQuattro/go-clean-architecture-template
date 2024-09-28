@@ -3,11 +3,12 @@ package repository
 import (
 	"context"
 	"fmt"
+	"sync"
+	"testing"
+
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/require"
-	"sync"
-	"testing"
 
 	"clean-arch-template/internal/entity"
 
@@ -168,7 +169,6 @@ func TestUserRepository(t *testing.T) {
 		// Проверка, что не было вызовов к базе данных
 		require.NoError(t, mockDb.ExpectationsWereMet())
 	})
-
 }
 
 func FuzzUserRepository(f *testing.F) {
@@ -195,9 +195,9 @@ func FuzzUserRepository(f *testing.F) {
 
 		_, err = repo.InsertUser(ctx, &user)
 		require.NoError(t, err)
-		//assert.NotNil(t, insertedUser)
-		//require.NotEqual(t, 0, insertedUser.ID)
-		//require.Equal(t, user.Name, insertedUser.Name)
+		// assert.NotNil(t, insertedUser)
+		// require.NotEqual(t, 0, insertedUser.ID)
+		// require.Equal(t, user.Name, insertedUser.Name)
 	})
 
 	//t.Run("FuzzyUpdateUser", func(t *testing.T) {

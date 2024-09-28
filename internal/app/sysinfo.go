@@ -9,7 +9,6 @@ import (
 )
 
 func PrintSystemData() {
-
 	slog.Info("====================== Application Info ==========================")
 
 	slog.Info(fmt.Sprintf("Environment: %s", os.Getenv("ENV_NAME")))

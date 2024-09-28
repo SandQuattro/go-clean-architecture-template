@@ -1,9 +1,11 @@
 package v1
 
 import (
+	"context"
+
 	"clean-arch-template/internal/entity"
 	"clean-arch-template/internal/usecase"
-	"context"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
@@ -90,7 +92,6 @@ func (uh *UserHandler) UpdateUser(ctx context.Context, req *UpdateUserRequest) (
 	cmd := usecase.CreateUpdateUserCommand{User: req.Body.User}
 
 	user, err := uh.userUC.UpdateUser(ctx, cmd)
-
 	if err != nil {
 		return nil, huma.Error500InternalServerError("update user error. ", err)
 	}

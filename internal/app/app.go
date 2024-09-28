@@ -1,10 +1,14 @@
 package app
 
 import (
+	"fmt"
+	"log/slog"
+	"os"
+
 	"clean-arch-template/config"
 	"clean-arch-template/pkg/database"
 	"clean-arch-template/version"
-	"fmt"
+
 	"github.com/gofiber/contrib/otelfiber/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/healthcheck"
@@ -13,8 +17,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/pprof"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/jackc/pgx/v5"
-	"log/slog"
-	"os"
 )
 
 type App struct {

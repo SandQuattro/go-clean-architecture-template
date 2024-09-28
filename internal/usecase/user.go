@@ -1,10 +1,10 @@
 package usecase
 
 import (
-	// !!! NO UPSTREAM DEPENDENCIES HERE, ONLY ENTITY/DOMAIN !!!
-	"clean-arch-template/internal/entity"
 	"context"
 	"errors"
+	// !!! NO UPSTREAM DEPENDENCIES HERE, ONLY ENTITY/DOMAIN !!!
+	"clean-arch-template/internal/entity"
 )
 
 type UserUseCase struct {
@@ -50,6 +50,7 @@ func (uc *UserUseCase) CreateUser(ctx context.Context, cmd CreateUpdateUserComma
 	}
 	return user, nil
 }
+
 func (uc *UserUseCase) UpdateUser(ctx context.Context, cmd CreateUpdateUserCommand) (*entity.User, error) {
 	userByID, err := uc.FindUserByID(ctx, FindUserByIDCommand{ID: cmd.User.ID})
 	if err != nil {
@@ -64,6 +65,7 @@ func (uc *UserUseCase) UpdateUser(ctx context.Context, cmd CreateUpdateUserComma
 	}
 	return user, nil
 }
+
 func (uc *UserUseCase) DeleteUser(ctx context.Context, cmd DeleteUserByIDCommand) error {
 	userByID, err := uc.FindUserByID(ctx, FindUserByIDCommand{ID: cmd.ID})
 	if err != nil {

@@ -1,8 +1,9 @@
 package database
 
 import (
-	"github.com/jackc/pgx/v5"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // Option -.

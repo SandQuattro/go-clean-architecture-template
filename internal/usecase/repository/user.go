@@ -3,19 +3,18 @@ package repository
 import (
 	"context"
 	"errors"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"log/slog"
 	"sync"
 	"unicode/utf8"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"clean-arch-template/internal/entity"
 	"clean-arch-template/pkg/database"
 )
 
-var (
-	ErrInvalidInputData = errors.New("invalid input data")
-)
+var ErrInvalidInputData = errors.New("invalid input data")
 
 type UserRepository struct {
 	db database.Database

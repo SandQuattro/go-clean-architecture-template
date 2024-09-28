@@ -66,10 +66,12 @@ GOLANGCI_LINT = $(PROJECT_BIN)/golangci-lint
 
 .PHONY: lint
 lint: .install-golangci-lint
+	gofumpt -w ./..
 	$(GOLANGCI_LINT) run ./... --config=./.golangci.yml
 
 .PHONY: lint-fast
 lint-fast: .install-golangci-lint
+	gofumpt -w ./..
 	$(GOLANGCI_LINT) run ./... --fast --config=./.golangci.yml
 
 # ---------------------------------- MIGRATIONS ---------------------------------

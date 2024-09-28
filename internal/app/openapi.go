@@ -1,10 +1,11 @@
 package app
 
 import (
-	v1 "clean-arch-template/internal/handler/rest/v1"
 	"net/http"
 	"reflect"
 	"sync"
+
+	v1 "clean-arch-template/internal/handler/rest/v1"
 
 	"clean-arch-template/internal/entity"
 	"clean-arch-template/internal/usecase"
