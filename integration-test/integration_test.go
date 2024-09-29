@@ -21,6 +21,11 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	if v, ok := os.LookupEnv("SKIP_INTEGRATION_TESTS"); ok && v != "" {
+		log.Println("Skipping integration tests")
+		os.Exit(0)
+	}
+
 	err := healthCheck(attempts)
 	if err != nil {
 		log.Fatalf("Integration tests: host %s is not available: %s", host, err)

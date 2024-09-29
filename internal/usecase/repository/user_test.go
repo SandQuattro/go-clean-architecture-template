@@ -141,7 +141,7 @@ func TestUserRepository(t *testing.T) {
 
 		mockDb.ExpectQuery("SELECT u.id, u.name, o.id as order_id, o.amount as order_amount FROM users").
 			WithArgs(id).
-			WillReturnRows(pgxmock.NewRows([]string{"id", "name"}).AddRow(1, "John"))
+			WillReturnRows(pgxmock.NewRows([]string{"id", "name", "order_id", "order_amount"}).AddRow(1, "John", 1, 100))
 
 		user, err := repo.GetUserByID(ctx, id)
 
