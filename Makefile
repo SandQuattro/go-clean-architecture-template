@@ -46,7 +46,7 @@ docker:
 # ----------------------------------- TESTING -----------------------------------
 .PHONY: tests
 tests:
-	go clean -testcache && go test ./...
+	go test -count=1 ./...
 
 .PHONY: cover
 cover:
