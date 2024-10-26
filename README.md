@@ -26,7 +26,7 @@
 - Observability: Logging slog (stdlib) json(production), Metrics, OpenTelemetry tracing, стандартный observability стек компании WB
 
 ##  Запуск приложения локально
-export DB_PASSWORD=<pass> ENV_NAME=dev && make dc
+DEBUG=true DB_PASSWORD=admin ENV_NAME=dev make cleandc
 
 ## Документация API
 [OpenAPI3.1](http://127.0.0.1:9000/docs)
@@ -51,4 +51,4 @@ export DB_PASSWORD=<pass> ENV_NAME=dev && make dc
 - [ ] Добавить unit тесты на слой handler
 - [ ] Добавить еще интеграционных тестов
 - [ ] Привести все тесты в порядок, добавить покрытие
-- [ ] Добавить prometheus и grafana в docker-compose
+- [x] Добавить prometheus и grafana в docker-compose

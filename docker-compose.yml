@@ -1,13 +1,14 @@
 services:
   postgres:
-    image: postgres:14
+    image: postgres:16
+    container_name: postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: admin
       POSTGRES_DB: demo
       #PGPORT: 5433 # if we want to change pg default port
     volumes:
-      - ${PWD}/pg_volume/volumes/postgres:/var/lib/postgresql/data # link container folder to host machine folder
+      - ./pg_volume/volumes/postgres:/var/lib/postgresql/data # link container folder to host machine folder
     expose:
       - "5433" # Publishes 5433 to other containers but NOT to host machine
     ports:
@@ -29,12 +30,33 @@ services:
       - "16686:16686" # http://localhost:16686 Jaeger UI
       - "14268:14268"
       - "4317:4317"
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus_volume:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    restart: unless-stopped
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana_volume:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    restart: unless-stopped
   app:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - 9000:8000
+    container_name: app
     environment:
       DEBUG: ${DEBUG}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -57,6 +79,7 @@ services:
     depends_on:
       app:
         condition: service_started
+    container_name: tests
     environment:
       - HOST=app
       - PORT=8000

@@ -9,6 +9,8 @@ import (
 	"clean-arch-template/pkg/database"
 	"clean-arch-template/version"
 
+	"github.com/ansrivas/fiberprometheus/v2"
+
 	"github.com/gofiber/contrib/otelfiber/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/healthcheck"
@@ -42,10 +44,19 @@ func Run(router *fiber.App, cfg *config.Config) {
 		EnableStackTrace: true,
 	}))
 
+	prometheus := fiberprometheus.New("clean-arch-template")
+	prometheus.RegisterAt(router, "/metrics")
+	prometheus.SetSkipPaths([]string{"/ping"}) // Optional: Remove some paths from metrics
+	router.Use(prometheus.Middleware)
+
 	if os.Getenv("ENV_NAME") == "dev" {
 		router.Use(pprof.New())
 		router.Get("/monitor", monitor.New())
 	}
+
+	router.Get("/", func(ctx *fiber.Ctx) error {
+		return ctx.Status(fiber.StatusOK).SendString("OK")
+	})
 
 	// Connect to Database
 	pg, err := database.New(cfg, database.MaxPoolSize(cfg.DB.PoolMax), database.Isolation(pgx.ReadCommitted))
