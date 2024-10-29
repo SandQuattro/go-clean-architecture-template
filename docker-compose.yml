@@ -46,8 +46,10 @@ services:
     ports:
       - "3000:3000"
     volumes:
+      - ./grafana_volume/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
       - ./grafana_volume:/var/lib/grafana
     environment:
+      - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
     restart: unless-stopped
   app:

@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+	"github.com/ansrivas/fiberprometheus/v2"
+	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"log/slog"
 	"os"
 
@@ -9,7 +11,7 @@ import (
 	"clean-arch-template/pkg/database"
 	"clean-arch-template/version"
 
-	"github.com/ansrivas/fiberprometheus/v2"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/gofiber/contrib/otelfiber/v2"
 	"github.com/gofiber/fiber/v2"
@@ -44,8 +46,11 @@ func Run(router *fiber.App, cfg *config.Config) {
 		EnableStackTrace: true,
 	}))
 
+	// go metrics
+	router.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
+	// fiber metrics
 	prometheus := fiberprometheus.New("clean-arch-template")
-	prometheus.RegisterAt(router, "/metrics")
+	prometheus.RegisterAt(router, "/fiber")
 	prometheus.SetSkipPaths([]string{"/ping"}) // Optional: Remove some paths from metrics
 	router.Use(prometheus.Middleware)
 
