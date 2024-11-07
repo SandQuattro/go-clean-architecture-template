@@ -1,0 +1,19 @@
+[app]
+name = "dbs_template"
+version = "0.0.1"
+
+[http]
+port = "8000"
+
+[tracing]
+url = "jaeger-collector.tracing:4317"
+
+[db]
+host = "postgres"
+port = 5432
+user = "postgres"
+name = "dbs"
+pool_max = 2
+
+[logger]
+level = "DEBUG"
