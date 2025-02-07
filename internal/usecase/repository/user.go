@@ -94,6 +94,7 @@ func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 
 func (r *UserRepository) GetUserByID(ctx context.Context, id int) (*entity.User, error) {
 	var user entity.User
+	var found bool
 
 	var (
 		orderID     pgtype.Int4
@@ -119,6 +120,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id int) (*entity.User,
 	}
 
 	_, err = pgx.ForEachRow(rows, []any{&user.ID, &user.Name, &orderID, &orderAmount}, func() error {
+		found = true
 		err = fillUserOrders(&user, orderID, orderAmount)
 		if err != nil {
 			return err
@@ -126,6 +128,10 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id int) (*entity.User,
 
 		return nil
 	})
+
+	if !found {
+		return nil, nil
+	}
 
 	return &user, nil
 }

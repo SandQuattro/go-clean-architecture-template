@@ -54,7 +54,7 @@ k6 run load-test/load_test.js
 - [x] Добавить unit тесты
 - [x] Добавить fuzzing тесты
 - [x] Добавить integration тесты
+- [x] Добавить prometheus и grafana в docker-compose
 - [ ] Добавить unit тесты на слой handler
 - [ ] Добавить еще интеграционных тестов
 - [ ] Привести все тесты в порядок, добавить покрытие
-- [x] Добавить prometheus и grafana в docker-compose

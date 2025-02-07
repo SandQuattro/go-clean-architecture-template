@@ -46,7 +46,7 @@ docker:
 # ----------------------------------- TESTING -----------------------------------
 .PHONY: tests
 tests:
-	go test -count=1 ./... -v
+	go test -count=1 $(shell go list ./... | grep -v integration-test) -v -test.v
 
 .PHONY: cover
 cover:

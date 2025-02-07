@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/require"
 
@@ -28,146 +29,303 @@ func TestUserRepository(t *testing.T) {
 		return mockDb, repo
 	}
 
-	t.Run("Empty Name", func(t *testing.T) {
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
+	t.Run("InsertUser", func(t *testing.T) {
+		t.Run("Empty Name", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
 
-		// Входные данные
-		input := &entity.User{Name: ""}
+			input := &entity.User{Name: ""}
 
-		// Ожидаемое поведение
-		mockDb.ExpectQuery("INSERT INTO users").
-			WithArgs(input.Name).
-			WillReturnError(ErrInvalidInputData)
+			result, err := repo.InsertUser(context.Background(), input)
 
-		// Вызов функции
-		result, err := repo.InsertUser(context.Background(), input)
+			assert.Equal(t, ErrInvalidInputData, err)
+			assert.Nil(t, result)
+		})
 
-		// Проверка результата
-		assert.Equal(t, ErrInvalidInputData, err)
-		assert.Nil(t, result)
+		t.Run("Invalid UTF-8 Name", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
 
-		// Проверка, что не было вызовов к базе данных
-		require.Error(t, mockDb.ExpectationsWereMet())
-	})
+			input := &entity.User{Name: string([]byte{0xbf, 0x27, 0x38})}
 
-	t.Run("Invalid UTF-8 Name", func(t *testing.T) {
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
+			result, err := repo.InsertUser(context.Background(), input)
 
-		// Входные данные с некорректной кодировкой
-		input := &entity.User{Name: string([]byte{0xbf, 0x27, 0x38})}
+			assert.Error(t, err)
+			assert.Nil(t, result)
+		})
 
-		// Ожидаемое поведение
-		mockDb.ExpectQuery("INSERT INTO users").
-			WithArgs(input.Name).
-			WillReturnError(ErrInvalidInputData)
+		t.Run("Valid Name", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
 
-		// Вызов функции
-		result, err := repo.InsertUser(context.Background(), input)
+			input := &entity.User{Name: "John"}
 
-		// Проверка результата
-		assert.Error(t, err)
-		assert.Nil(t, result)
+			mockDb.ExpectQuery("INSERT INTO users").
+				WithArgs(input.Name).
+				WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(1))
 
-		// Проверка, что не было вызовов к базе данных
-		require.Error(t, mockDb.ExpectationsWereMet())
-	})
+			result, err := repo.InsertUser(context.Background(), input)
 
-	t.Run("Valid Name", func(t *testing.T) {
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.Equal(t, 1, result.ID)
+			require.Equal(t, "John", result.Name)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
 
-		// Входные данные для вставки
-		input := &entity.User{Name: "John"}
+		t.Run("Database Error", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
 
-		// Ожидания для мока
-		mockDb.ExpectQuery("INSERT").
-			WithArgs(input.Name).
-			WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(1))
+			input := &entity.User{Name: "John"}
 
-		// Вызов функции
-		result, e := repo.InsertUser(context.Background(), input)
+			mockDb.ExpectQuery("INSERT INTO users").
+				WithArgs(input.Name).
+				WillReturnError(fmt.Errorf("database connection error"))
 
-		// Проверка результата
-		require.NoError(t, e)
-		require.NotNil(t, result)
-		require.Equal(t, 1, result.ID)
-		require.Equal(t, "John", result.Name)
+			result, err := repo.InsertUser(context.Background(), input)
 
-		// Проверка, что не было вызовов к базе данных
-		require.NoError(t, mockDb.ExpectationsWereMet())
+			require.Error(t, err)
+			require.Nil(t, result)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
 	})
 
 	t.Run("UpdateUser", func(t *testing.T) {
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
+		t.Run("Success", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
 
-		user := entity.User{ID: 1, Name: "Updated Name"}
+			user := entity.User{ID: 1, Name: "Updated Name"}
 
-		mockDb.ExpectExec("UPDATE users").
-			WithArgs(user.ID, user.Name).
-			WillReturnResult(pgconn.NewCommandTag(fmt.Sprintf("%s %d", "UPDATE", 1)))
+			mockDb.ExpectExec("UPDATE users").
+				WithArgs(user.ID, user.Name).
+				WillReturnResult(pgconn.NewCommandTag("UPDATE 1"))
 
-		updatedUser, err := repo.UpdateUser(ctx, &user)
-		require.NoError(t, err)
-		require.NotNil(t, updatedUser)
+			updatedUser, err := repo.UpdateUser(ctx, &user)
+			require.NoError(t, err)
+			require.NotNil(t, updatedUser)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
 
-		// Проверка, что не было вызовов к базе данных
-		require.NoError(t, mockDb.ExpectationsWereMet())
+		t.Run("No Rows Updated", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
+
+			user := entity.User{ID: 999, Name: "Non Existent"}
+
+			mockDb.ExpectExec("UPDATE users").
+				WithArgs(user.ID, user.Name).
+				WillReturnResult(pgconn.NewCommandTag("UPDATE 0"))
+
+			updatedUser, err := repo.UpdateUser(ctx, &user)
+			require.NoError(t, err) // В текущей реализации нет проверки на количество обновленных строк
+			require.NotNil(t, updatedUser)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
+
+		t.Run("Database Error", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
+
+			user := entity.User{ID: 1, Name: "Error Test"}
+
+			mockDb.ExpectExec("UPDATE users").
+				WithArgs(user.ID, user.Name).
+				WillReturnError(fmt.Errorf("database connection error"))
+
+			updatedUser, err := repo.UpdateUser(ctx, &user)
+			require.Error(t, err)
+			require.Nil(t, updatedUser)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
 	})
 
 	t.Run("GetAllUsers", func(t *testing.T) {
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
+		t.Run("Success With Orders", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
 
-		mockDb.ExpectQuery("SELECT u.id, u.name, o.id as order_id, o.amount as order_amount FROM users").
-			WithArgs(0, 10).
-			WillReturnRows(pgxmock.NewRows([]string{"id", "name"}).AddRow(1, "John"))
+			rows := pgxmock.NewRows([]string{"id", "name", "order_id", "order_amount"}).
+				AddRow(1, "John", pgtype.Int4{Int32: 1, Valid: true}, pgtype.Int4{Int32: 100, Valid: true}).
+				AddRow(1, "John", pgtype.Int4{Int32: 2, Valid: true}, pgtype.Int4{Int32: 200, Valid: true}).
+				AddRow(2, "Jane", pgtype.Int4{Int32: 3, Valid: true}, pgtype.Int4{Int32: 300, Valid: true})
 
-		users, err := repo.GetAllUsers(ctx, 0, 10)
-		require.NoError(t, err)
-		require.NotNil(t, users)
+			mockDb.ExpectQuery("SELECT u.id, u.name, o.id as order_id, o.amount as order_amount FROM users").
+				WithArgs(0, 10).
+				WillReturnRows(rows)
 
-		// Проверка, что не было вызовов к базе данных
-		require.NoError(t, mockDb.ExpectationsWereMet())
+			users, err := repo.GetAllUsers(ctx, 0, 10)
+			require.NoError(t, err)
+			require.Len(t, users, 2) // Должно быть 2 пользователя
+			require.Equal(t, "John", users[0].Name)
+			require.Len(t, users[0].Orders, 2) // У John должно быть 2 заказа
+			require.Equal(t, "Jane", users[1].Name)
+			require.Len(t, users[1].Orders, 1) // У Jane должен быть 1 заказ
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
+
+		t.Run("Empty Result", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
+
+			mockDb.ExpectQuery("SELECT u.id, u.name, o.id as order_id, o.amount as order_amount FROM users").
+				WithArgs(0, 10).
+				WillReturnRows(pgxmock.NewRows([]string{"id", "name", "order_id", "order_amount"}))
+
+			users, err := repo.GetAllUsers(ctx, 0, 10)
+			require.NoError(t, err)
+			require.Empty(t, users)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
+
+		t.Run("Database Error", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
+
+			mockDb.ExpectQuery("SELECT u.id, u.name, o.id as order_id, o.amount as order_amount FROM users").
+				WithArgs(0, 10).
+				WillReturnError(fmt.Errorf("database connection error"))
+
+			users, err := repo.GetAllUsers(ctx, 0, 10)
+			require.Error(t, err)
+			require.Nil(t, users)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
+
+		t.Run("Invalid Pagination", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
+
+			mockDb.ExpectQuery("SELECT u.id, u.name, o.id as order_id, o.amount as order_amount FROM users").
+				WithArgs(-1, -10).
+				WillReturnError(fmt.Errorf("invalid pagination parameters"))
+
+			users, err := repo.GetAllUsers(ctx, -1, -10)
+			require.Error(t, err)
+			require.Nil(t, users)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
 	})
 
-	// TODO fix test
 	t.Run("GetUserByID", func(t *testing.T) {
-		id := 1
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
+		t.Run("Success With Orders", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
 
-		mockDb.ExpectQuery("SELECT u.id, u.name, o.id as order_id, o.amount as order_amount FROM users").
-			WithArgs(id).
-			WillReturnRows(pgxmock.NewRows([]string{"id", "name", "order_id", "order_amount"}).AddRow(1, "John", 1, 100))
+			rows := pgxmock.NewRows([]string{"id", "name", "order_id", "order_amount"}).
+				AddRow(1, "John", pgtype.Int4{Int32: 1, Valid: true}, pgtype.Int4{Int32: 100, Valid: true}).
+				AddRow(1, "John", pgtype.Int4{Int32: 2, Valid: true}, pgtype.Int4{Int32: 200, Valid: true})
 
-		user, err := repo.GetUserByID(ctx, id)
+			mockDb.ExpectQuery("SELECT u.id, u.name, o.id as order_id, o.amount as order_amount FROM users").
+				WithArgs(1).
+				WillReturnRows(rows)
 
-		require.NoError(t, err)
-		require.NotNil(t, user)
-		assert.Equal(t, user.ID, id)
+			user, err := repo.GetUserByID(ctx, 1)
+			require.NoError(t, err)
+			require.NotNil(t, user)
+			require.Equal(t, 1, user.ID)
+			require.Equal(t, "John", user.Name)
+			require.Len(t, user.Orders, 2)
+			require.Equal(t, int64(100), user.Orders[0].Amount)
+			require.Equal(t, int64(200), user.Orders[1].Amount)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
 
-		// Проверка, что не было вызовов к базе данных
-		require.NoError(t, mockDb.ExpectationsWereMet())
+		t.Run("No Orders", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
+
+			rows := pgxmock.NewRows([]string{"id", "name", "order_id", "order_amount"}).
+				AddRow(1, "John", pgtype.Int4{Valid: false}, pgtype.Int4{Valid: false})
+
+			mockDb.ExpectQuery("SELECT u.id, u.name, o.id as order_id, o.amount as order_amount FROM users").
+				WithArgs(1).
+				WillReturnRows(rows)
+
+			user, err := repo.GetUserByID(ctx, 1)
+			require.NoError(t, err)
+			require.NotNil(t, user)
+			require.Equal(t, 1, user.ID)
+			require.Equal(t, "John", user.Name)
+			require.Empty(t, user.Orders)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
+
+		t.Run("User Not Found", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
+
+			mockDb.ExpectQuery("SELECT u.id, u.name, o.id as order_id, o.amount as order_amount FROM users").
+				WithArgs(999).
+				WillReturnRows(pgxmock.NewRows([]string{"id", "name", "order_id", "order_amount"}))
+
+			user, err := repo.GetUserByID(ctx, 999)
+			require.NoError(t, err) // В текущей реализации нет проверки на отсутствие пользователя
+			require.Nil(t, user)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
+
+		t.Run("Database Error", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
+
+			mockDb.ExpectQuery("SELECT u.id, u.name, o.id as order_id, o.amount as order_amount FROM users").
+				WithArgs(1).
+				WillReturnError(fmt.Errorf("database connection error"))
+
+			user, err := repo.GetUserByID(ctx, 1)
+			require.Error(t, err)
+			require.Nil(t, user)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
 	})
 
 	t.Run("DeleteUser", func(t *testing.T) {
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
+		t.Run("Success", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
 
-		userToDelete := entity.User{Name: "To Be Deleted"}
+			userToDelete := entity.User{ID: 1, Name: "To Be Deleted"}
 
-		mockDb.ExpectExec("DELETE FROM users").
-			WithArgs(userToDelete.ID).
-			WillReturnResult(pgconn.NewCommandTag(fmt.Sprintf("%s %d", "DELETE", 1)))
+			mockDb.ExpectExec("DELETE FROM users").
+				WithArgs(userToDelete.ID).
+				WillReturnResult(pgconn.NewCommandTag("DELETE 1"))
 
-		err := repo.DeleteUser(ctx, &userToDelete)
-		require.NoError(t, err)
+			err := repo.DeleteUser(ctx, &userToDelete)
+			require.NoError(t, err)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
 
-		// Проверка, что не было вызовов к базе данных
-		require.NoError(t, mockDb.ExpectationsWereMet())
+		t.Run("No Rows Deleted", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
+
+			userToDelete := entity.User{ID: 999, Name: "Non Existent"}
+
+			mockDb.ExpectExec("DELETE FROM users").
+				WithArgs(userToDelete.ID).
+				WillReturnResult(pgconn.NewCommandTag("DELETE 0"))
+
+			err := repo.DeleteUser(ctx, &userToDelete)
+			require.NoError(t, err) // В текущей реализации нет проверки на количество удаленных строк
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
+
+		t.Run("Database Error", func(t *testing.T) {
+			mockDb, repo := newMockDB()
+			defer mockDb.Close(context.Background())
+
+			userToDelete := entity.User{ID: 1, Name: "Error Test"}
+
+			mockDb.ExpectExec("DELETE FROM users").
+				WithArgs(userToDelete.ID).
+				WillReturnError(fmt.Errorf("database connection error"))
+
+			err := repo.DeleteUser(ctx, &userToDelete)
+			require.Error(t, err)
+			require.NoError(t, mockDb.ExpectationsWereMet())
+		})
 	})
 }
 
@@ -186,7 +344,7 @@ func FuzzUserRepository(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, name string) {
 		var user entity.User
-		user.ID = 0 // Ensure ID is 0 for insertion
+		user.ID = 0 // ID = 0 for insertion
 		user.Name = name
 
 		db.ExpectQuery("INSERT INTO users").
@@ -195,9 +353,6 @@ func FuzzUserRepository(f *testing.F) {
 
 		_, err = repo.InsertUser(ctx, &user)
 		require.NoError(t, err)
-		// assert.NotNil(t, insertedUser)
-		// require.NotEqual(t, 0, insertedUser.ID)
-		// require.Equal(t, user.Name, insertedUser.Name)
 	})
 
 	//t.Run("FuzzyUpdateUser", func(t *testing.T) {
