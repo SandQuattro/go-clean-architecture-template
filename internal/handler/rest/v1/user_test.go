@@ -3,7 +3,7 @@ package v1
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"net/http"
 	"reflect"
 	"testing"
@@ -110,6 +110,108 @@ func TestFindUserByIDSuccess(t *testing.T) {
 	}
 }
 
+func TestCreateUserSuccess(t *testing.T) {
+	_, api := humatest.New(t)
+	setup(api)
+
+	resp := api.Post("/user", map[string]interface{}{
+		"id":   0,
+		"name": "New Test User",
+	})
+
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("Expected status code %d, got %d", http.StatusCreated, resp.Code)
+	}
+
+	var response struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if response.Name != "New Test User" {
+		t.Errorf("User name does not match. Got %s, want %s", response.Name, "New Test User")
+	}
+}
+
+func TestCreateUserInvalidData(t *testing.T) {
+	_, api := humatest.New(t)
+	setup(api)
+
+	// Test with empty name
+	resp := api.Post("/user", map[string]interface{}{
+		"id":   0,
+		"name": "",
+	})
+
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("Expected status code %d for empty name, got %d", http.StatusBadRequest, resp.Code)
+	}
+}
+
+func TestUpdateUserSuccess(t *testing.T) {
+	_, api := humatest.New(t)
+	setup(api)
+
+	resp := api.Put("/user/1", map[string]interface{}{
+		"id":   1,
+		"name": "Updated Test User",
+	})
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Expected status code %d, got %d", http.StatusOK, resp.Code)
+	}
+
+	var response struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if response.ID != 1 || response.Name != "Updated Test User" {
+		t.Errorf("User data does not match. Got ID:%d Name:%s, want ID:%d Name:%s",
+			response.ID, response.Name, 1, "Updated Test User")
+	}
+}
+
+func TestUpdateUserNotFound(t *testing.T) {
+	_, api := humatest.New(t)
+	setup(api)
+
+	resp := api.Put("/user/999", map[string]interface{}{
+		"id":   999,
+		"name": "Non-existent User",
+	})
+
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("Expected status code %d for non-existent user, got %d", http.StatusNotFound, resp.Code)
+	}
+}
+
+func TestDeleteUserSuccess(t *testing.T) {
+	_, api := humatest.New(t)
+	setup(api)
+
+	resp := api.Delete("/user/1")
+	if resp.Code != http.StatusNoContent {
+		t.Fatalf("Expected status code %d, got %d", http.StatusNoContent, resp.Code)
+	}
+}
+
+func TestDeleteUserNotFound(t *testing.T) {
+	_, api := humatest.New(t)
+	setup(api)
+
+	resp := api.Delete("/user/999")
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("Expected status code %d for non-existent user, got %d", http.StatusNotFound, resp.Code)
+	}
+}
+
 // mockUserRepository implements usecase.UserRepository interface for testing
 type mockUserRepository struct {
 	users []entity.User
@@ -117,18 +219,9 @@ type mockUserRepository struct {
 
 func (m *mockUserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]entity.User, error) {
 	if offset < 0 || limit <= 0 {
-		return nil, errors.New("invalid pagination parameters")
+		return nil, fmt.Errorf("invalid pagination parameters")
 	}
-
-	end := offset + limit
-	if end > len(m.users) {
-		end = len(m.users)
-	}
-	if offset >= len(m.users) {
-		return []entity.User{}, nil
-	}
-
-	return m.users[offset:end], nil
+	return m.users, nil
 }
 
 func (m *mockUserRepository) GetUserByID(ctx context.Context, id int) (*entity.User, error) {
@@ -137,32 +230,37 @@ func (m *mockUserRepository) GetUserByID(ctx context.Context, id int) (*entity.U
 			return &user, nil
 		}
 	}
-	return nil, usecase.ErrUserNotFound
+	return nil, nil
 }
 
 func (m *mockUserRepository) InsertUser(ctx context.Context, user *entity.User) (*entity.User, error) {
+	if user.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+
+	user.ID = len(m.users) + 1
 	m.users = append(m.users, *user)
 	return user, nil
 }
 
 func (m *mockUserRepository) UpdateUser(ctx context.Context, user *entity.User) (*entity.User, error) {
-	for i, u := range m.users {
-		if u.ID == user.ID {
+	for i, existingUser := range m.users {
+		if existingUser.ID == user.ID {
 			m.users[i] = *user
-			return &m.users[i], nil
+			return user, nil
 		}
 	}
-	return nil, usecase.ErrUserNotFound
+	return nil, fmt.Errorf("user not found")
 }
 
 func (m *mockUserRepository) DeleteUser(ctx context.Context, user *entity.User) error {
-	for i, u := range m.users {
-		if u.ID == user.ID {
+	for i, existingUser := range m.users {
+		if existingUser.ID == user.ID {
 			m.users = append(m.users[:i], m.users[i+1:]...)
 			return nil
 		}
 	}
-	return usecase.ErrUserNotFound
+	return fmt.Errorf("user not found")
 }
 
 func setupUserRoutes(api huma.API, userUC *usecase.UserUseCase) {

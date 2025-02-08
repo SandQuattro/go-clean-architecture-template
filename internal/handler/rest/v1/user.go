@@ -55,12 +55,11 @@ func (uh *UserHandler) FindUserByID(ctx context.Context, req *FindUserRequest) (
 	cmd := usecase.FindUserByIDCommand{ID: req.ID}
 
 	user, err := uh.userUC.FindUserByID(ctx, cmd)
-	if user == nil && err == nil {
-		return nil, huma.Error404NotFound("user not found")
-	}
-
 	if err != nil {
-		return nil, huma.Error500InternalServerError("getting user by id error. ", err)
+		return nil, MapError(err)
+	}
+	if user == nil {
+		return nil, MapError(usecase.ErrUserNotFound)
 	}
 
 	resp := &UserResponse{
@@ -75,11 +74,15 @@ func (uh *UserHandler) CreateUser(ctx context.Context, req *UserRequest) (*UserR
 	_, span := tracer.Start(ctx, "CreateUser", trace.WithSpanKind(trace.SpanKindServer))
 	defer span.End()
 
+	if req.Body.User.Name == "" {
+		return nil, MapError(ErrEmptyName)
+	}
+
 	cmd := usecase.CreateUpdateUserCommand{User: req.Body.User}
 
 	user, err := uh.userUC.CreateUser(ctx, cmd)
 	if err != nil {
-		return nil, huma.Error500InternalServerError(err.Error())
+		return nil, MapError(err)
 	}
 
 	resp := &UserResponse{
@@ -94,11 +97,15 @@ func (uh *UserHandler) UpdateUser(ctx context.Context, req *UpdateUserRequest) (
 	_, span := tracer.Start(ctx, "UpdateUser", trace.WithSpanKind(trace.SpanKindServer))
 	defer span.End()
 
+	if req.Body.User.Name == "" {
+		return nil, MapError(ErrEmptyName)
+	}
+
 	cmd := usecase.CreateUpdateUserCommand{User: req.Body.User}
 
 	user, err := uh.userUC.UpdateUser(ctx, cmd)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("update user error. ", err)
+		return nil, MapError(err)
 	}
 
 	resp := &UserResponse{
@@ -117,7 +124,7 @@ func (uh *UserHandler) DeleteUser(ctx context.Context, req *FindUserRequest) (*s
 
 	err := uh.userUC.DeleteUser(ctx, cmd)
 	if err != nil {
-		return nil, huma.Error400BadRequest("user not found", err)
+		return nil, MapError(err)
 	}
 
 	return &struct{}{}, nil
