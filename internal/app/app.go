@@ -1,11 +1,16 @@
 package app
 
 import (
+	"clean-arch-template/internal/handler/rest/v1"
+	"clean-arch-template/internal/usecase"
+	"clean-arch-template/internal/usecase/repository"
 	"fmt"
 	"github.com/ansrivas/fiberprometheus/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humafiber"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"log/slog"
 	"os"
+	"sync"
 
 	"clean-arch-template/config"
 	"clean-arch-template/pkg/database"
@@ -78,7 +83,16 @@ func Run(router *fiber.App, cfg *config.Config) {
 	}
 
 	// Setup routes
-	setupRoutes(router, pg)
+	humaConfig := v1.SetupHumaConfig()
+	api := humafiber.New(router, humaConfig)
+
+	// Initialize use cases
+	o := sync.Once{}
+	userUseCase := usecase.NewUserUseCase(repository.NewUserRepository(&o, pg.Pool))
+
+	// Initialize handlers
+	userHandler := v1.NewUserHandler(userUseCase)
+	v1.SetupRoutes(api, userHandler)
 
 	PrintSystemData()
 	PrintMemoryInfo()

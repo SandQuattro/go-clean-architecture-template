@@ -54,12 +54,6 @@ test-coverage:
 	go tool cover -func=coverage.out
 	go tool cover -html=coverage.out
 	rm coverage.out
-
-.PHONY: cover
-cover:
-	go test -short -count=1 -race -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out
-	rm coverage.out
 # ---------------------------------- PROFILING ----------------------------------
 .PHONY: cpuprof
 cpuprof:

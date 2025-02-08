@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"reflect"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -32,11 +31,14 @@ func setup(api huma.API) {
 	mockRepo := &mockUserRepository{users: mockUsers}
 	userUC := usecase.NewUserUseCase(mockRepo)
 
-	setupUserRoutes(api, userUC)
+	handler := NewUserHandler(userUC)
+
+	SetupRoutes(api, handler)
 }
 
 func TestListUsersSuccess(t *testing.T) {
-	_, api := humatest.New(t)
+	humaConfig := SetupHumaConfig()
+	_, api := humatest.New(t, humaConfig)
 	setup(api)
 
 	resp := api.Get("/users/0/10")
@@ -67,7 +69,8 @@ func TestListUsersSuccess(t *testing.T) {
 }
 
 func TestListUsersPageError(t *testing.T) {
-	_, api := humatest.New(t)
+	humaConfig := SetupHumaConfig()
+	_, api := humatest.New(t, humaConfig)
 	setup(api)
 
 	resp := api.Get("/users/-1/10")
@@ -77,7 +80,8 @@ func TestListUsersPageError(t *testing.T) {
 }
 
 func TestListUsersSizeError(t *testing.T) {
-	_, api := humatest.New(t)
+	humaConfig := SetupHumaConfig()
+	_, api := humatest.New(t, humaConfig)
 	setup(api)
 
 	resp := api.Get("/users/0/-1")
@@ -87,7 +91,8 @@ func TestListUsersSizeError(t *testing.T) {
 }
 
 func TestFindUserByIDSuccess(t *testing.T) {
-	_, api := humatest.New(t)
+	humaConfig := SetupHumaConfig()
+	_, api := humatest.New(t, humaConfig)
 	setup(api)
 
 	resp := api.Get("/user/1")
@@ -111,7 +116,8 @@ func TestFindUserByIDSuccess(t *testing.T) {
 }
 
 func TestCreateUserSuccess(t *testing.T) {
-	_, api := humatest.New(t)
+	humaConfig := SetupHumaConfig()
+	_, api := humatest.New(t, humaConfig)
 	setup(api)
 
 	resp := api.Post("/user", map[string]interface{}{
@@ -137,7 +143,8 @@ func TestCreateUserSuccess(t *testing.T) {
 }
 
 func TestCreateUserInvalidData(t *testing.T) {
-	_, api := humatest.New(t)
+	humaConfig := SetupHumaConfig()
+	_, api := humatest.New(t, humaConfig)
 	setup(api)
 
 	// Test with empty name
@@ -152,7 +159,8 @@ func TestCreateUserInvalidData(t *testing.T) {
 }
 
 func TestUpdateUserSuccess(t *testing.T) {
-	_, api := humatest.New(t)
+	humaConfig := SetupHumaConfig()
+	_, api := humatest.New(t, humaConfig)
 	setup(api)
 
 	resp := api.Put("/user/1", map[string]interface{}{
@@ -179,7 +187,8 @@ func TestUpdateUserSuccess(t *testing.T) {
 }
 
 func TestUpdateUserNotFound(t *testing.T) {
-	_, api := humatest.New(t)
+	humaConfig := SetupHumaConfig()
+	_, api := humatest.New(t, humaConfig)
 	setup(api)
 
 	resp := api.Put("/user/999", map[string]interface{}{
@@ -193,7 +202,8 @@ func TestUpdateUserNotFound(t *testing.T) {
 }
 
 func TestDeleteUserSuccess(t *testing.T) {
-	_, api := humatest.New(t)
+	humaConfig := SetupHumaConfig()
+	_, api := humatest.New(t, humaConfig)
 	setup(api)
 
 	resp := api.Delete("/user/1")
@@ -203,7 +213,8 @@ func TestDeleteUserSuccess(t *testing.T) {
 }
 
 func TestDeleteUserNotFound(t *testing.T) {
-	_, api := humatest.New(t)
+	humaConfig := SetupHumaConfig()
+	_, api := humatest.New(t, humaConfig)
 	setup(api)
 
 	resp := api.Delete("/user/999")
@@ -261,250 +272,4 @@ func (m *mockUserRepository) DeleteUser(ctx context.Context, user *entity.User) 
 		}
 	}
 	return fmt.Errorf("user not found")
-}
-
-func setupUserRoutes(api huma.API, userUC *usecase.UserUseCase) {
-	// Initialize handlers
-	userHandler := NewUserHandler(userUC)
-
-	registry := huma.NewMapRegistry("#/components/schemas/", huma.DefaultSchemaNamer)
-	userListSchema := huma.SchemaFromType(registry, reflect.TypeOf(&ListUserResponse{}))
-
-	huma.Register(api, huma.Operation{
-		OperationID: "List users",
-		Method:      http.MethodGet,
-		Path:        "/users/{page}/{size}",
-		Summary:     "list all users",
-		Description: "Get a list of all users with pagination.",
-		Tags:        []string{"Users"},
-		Parameters: []*huma.Param{
-			{
-				Name:     "page",
-				In:       "path",
-				Required: true,
-				Schema: &huma.Schema{
-					Type: "integer",
-				},
-			},
-			{
-				Name:     "size",
-				In:       "path",
-				Required: true,
-				Schema: &huma.Schema{
-					Type: "integer",
-				},
-			},
-		},
-		Responses: map[string]*huma.Response{
-			"200": {
-				Description: "Successful response",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: userListSchema,
-					},
-				},
-			},
-		},
-	}, userHandler.ListUsers)
-
-	userbyIDSchema := huma.SchemaFromType(registry, reflect.TypeOf(&entity.User{}))
-
-	huma.Register(api, huma.Operation{
-		OperationID: "Get user by id",
-		Method:      http.MethodGet,
-		Path:        "/user/{id}",
-		Summary:     "user by id",
-		Description: "Get a user by id.",
-		Tags:        []string{"Users"},
-		Responses: map[string]*huma.Response{
-			"200": {
-				Description: "IUserUC response",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: userbyIDSchema,
-					},
-				},
-			},
-			"400": {
-				Description: "Invalid request",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"message": {Type: "string"},
-								"field":   {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-			"404": {
-				Description: "IUserUC not found",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"error": {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-			"500": {
-				Description: "Internal server error",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"error": {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-		},
-	}, userHandler.FindUserByID)
-
-	huma.Register(api, huma.Operation{
-		OperationID:   "Create user",
-		Method:        http.MethodPost,
-		Path:          "/user",
-		Summary:       "create new user",
-		Description:   "Create a new user record.",
-		Tags:          []string{"Users"},
-		DefaultStatus: http.StatusCreated,
-		Responses: map[string]*huma.Response{
-			"201": {
-				Description: "IUserUC created",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"body": {
-									Type: "object",
-									Properties: map[string]*huma.Schema{
-										"name": {Type: "string"},
-									},
-									Required: []string{"name"},
-								},
-							},
-							Required: []string{"body"},
-						},
-					},
-				},
-				Headers: map[string]*huma.Param{
-					"Location": {
-						Description: "URL of the newly created user",
-						Schema:      &huma.Schema{Type: "string"},
-						Required:    true,
-					},
-				},
-			},
-			"400": {
-				Description: "Invalid request",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"message": {Type: "string"},
-								"field":   {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-		},
-	}, userHandler.CreateUser)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "Update user",
-		Method:      http.MethodPut,
-		Path:        "/user/{id}",
-		Summary:     "update user",
-		Description: "Update an existing user by ID.",
-		Tags:        []string{"Users"},
-		Responses: map[string]*huma.Response{
-			"200": {
-				Description: "IUserUC updated",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"body": {
-									Type: "object",
-									Properties: map[string]*huma.Schema{
-										"name": {Type: "string"},
-									},
-									Required: []string{"name"},
-								},
-							},
-							Required: []string{"body"},
-						},
-					},
-				},
-			},
-			"400": {
-				Description: "Invalid request",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"message": {Type: "string"},
-								"field":   {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-			"404": {
-				Description: "IUserUC not found",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"error": {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-		},
-	}, userHandler.UpdateUser)
-
-	huma.Register(api, huma.Operation{
-		OperationID:   "Delete user",
-		Method:        http.MethodDelete,
-		Path:          "/user/{id}",
-		Summary:       "delete user",
-		Description:   "Delete a user by ID.",
-		Tags:          []string{"Users"},
-		DefaultStatus: http.StatusNoContent,
-		Responses: map[string]*huma.Response{
-			"204": {
-				Description: "IUserUC deleted",
-				Content:     map[string]*huma.MediaType{},
-			},
-			"404": {
-				Description: "IUserUC not found",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"error": {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-		},
-	}, userHandler.DeleteUser)
 }

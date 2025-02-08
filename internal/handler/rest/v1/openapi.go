@@ -1,22 +1,22 @@
-package app
+package v1
 
 import (
+	"clean-arch-template/internal/entity"
+	"context"
+	"github.com/danielgtaylor/huma/v2"
 	"net/http"
 	"reflect"
-	"sync"
-
-	v1 "clean-arch-template/internal/handler/rest/v1"
-
-	"clean-arch-template/internal/entity"
-	"clean-arch-template/internal/usecase"
-	userRepo "clean-arch-template/internal/usecase/repository"
-	"clean-arch-template/pkg/database"
-	"github.com/danielgtaylor/huma/v2"
-	"github.com/danielgtaylor/huma/v2/adapters/humafiber"
-	"github.com/gofiber/fiber/v2"
 )
 
-func setupRoutes(router *fiber.App, pg *database.Postgres) {
+type Handler interface {
+	ListUsers(ctx context.Context, req *ListUserRequest) (*ListUserResponse, error)
+	FindUserByID(ctx context.Context, req *FindUserRequest) (*UserResponse, error)
+	CreateUser(ctx context.Context, req *UserRequest) (*UserResponse, error)
+	UpdateUser(ctx context.Context, req *UpdateUserRequest) (*UserResponse, error)
+	DeleteUser(ctx context.Context, req *FindUserRequest) (*struct{}, error)
+}
+
+func SetupHumaConfig() huma.Config {
 	openapiConfig := huma.DefaultConfig("Clean Architecture Template", "1.0.0")
 	openapiConfig.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
 		"auth": {
@@ -29,22 +29,14 @@ func setupRoutes(router *fiber.App, pg *database.Postgres) {
 		{"auth": {""}},
 	}
 
-	api := humafiber.New(router, openapiConfig)
-
-	setupUserRoutes(api, pg)
+	return openapiConfig
 }
 
 //nolint:funlen
-func setupUserRoutes(api huma.API, pg *database.Postgres) {
-	// Initialize use cases
-	o := sync.Once{}
-	userUseCase := usecase.NewUserUseCase(userRepo.NewUserRepository(&o, pg.Pool))
-
-	// Initialize handlers
-	userHandler := v1.NewUserHandler(userUseCase)
+func SetupRoutes(api huma.API, userHandler Handler) {
 
 	registry := huma.NewMapRegistry("#/components/schemas/", huma.DefaultSchemaNamer)
-	userListSchema := huma.SchemaFromType(registry, reflect.TypeOf(&v1.ListUserResponse{}))
+	userListSchema := huma.SchemaFromType(registry, reflect.TypeOf(&ListUserResponse{}))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "List users",
