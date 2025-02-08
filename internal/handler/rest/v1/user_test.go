@@ -45,7 +45,10 @@ func TestListUsersSuccess(t *testing.T) {
 	}
 
 	var response struct {
-		Users []entity.User `json:"Users"`
+		Users []struct {
+			ID   int    `json:"id"`
+			Name string `json:"name"`
+		} `json:"Users"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
@@ -57,7 +60,8 @@ func TestListUsersSuccess(t *testing.T) {
 
 	for i, user := range response.Users {
 		if user.ID != mockUsers[i].ID || user.Name != mockUsers[i].Name {
-			t.Errorf("User %d does not match expected data. Got %+v, want %+v", i, user, mockUsers[i])
+			t.Errorf("User %d does not match expected data. Got ID:%d Name:%s, want ID:%d Name:%s",
+				i, user.ID, user.Name, mockUsers[i].ID, mockUsers[i].Name)
 		}
 	}
 }
@@ -79,6 +83,30 @@ func TestListUsersSizeError(t *testing.T) {
 	resp := api.Get("/users/0/-1")
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("Expected status code %d for invalid parameters, got %d", http.StatusBadRequest, resp.Code)
+	}
+}
+
+func TestFindUserByIDSuccess(t *testing.T) {
+	_, api := humatest.New(t)
+	setup(api)
+
+	resp := api.Get("/user/1")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Expected status code %d, got %d", http.StatusOK, resp.Code)
+	}
+
+	var user struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	expectedUser := mockUsers[0]
+	if user.ID != expectedUser.ID || user.Name != expectedUser.Name {
+		t.Errorf("User does not match expected data. Got ID:%d Name:%s, want ID:%d Name:%s",
+			user.ID, user.Name, expectedUser.ID, expectedUser.Name)
 	}
 }
 
