@@ -48,6 +48,13 @@ docker:
 tests:
 	go test -count=1 $(shell go list ./... | grep -v integration-test) -v -test.v
 
+.PHONY: test-coverage
+test-coverage:
+	go test -count=1 -race -coverprofile=coverage.out $(shell go list ./... | grep -v integration-test)
+	go tool cover -func=coverage.out
+	go tool cover -html=coverage.out
+	rm coverage.out
+
 .PHONY: cover
 cover:
 	go test -short -count=1 -race -coverprofile=coverage.out ./...
