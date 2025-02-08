@@ -29,6 +29,11 @@ func (uh *UserHandler) ListUsers(ctx context.Context, req *ListUserRequest) (*Li
 	_, span := tracer.Start(ctx, "ListUsers", trace.WithSpanKind(trace.SpanKindServer))
 	defer span.End()
 
+	// Validate input parameters
+	if req.Page < 0 || req.Size <= 0 {
+		return nil, huma.Error400BadRequest("invalid pagination parameters: page must be equal or greater then 0 and size must be greater then 0")
+	}
+
 	cmd := usecase.FindAllUsersCommand{
 		Page: req.Page,
 		Size: req.Size,
@@ -36,7 +41,7 @@ func (uh *UserHandler) ListUsers(ctx context.Context, req *ListUserRequest) (*Li
 
 	users, err := uh.userUC.FindAllUsers(ctx, cmd)
 	if err != nil {
-		return nil, err
+		return nil, huma.Error500InternalServerError("error fetching users: ", err)
 	}
 
 	return &ListUserResponse{Body: struct{ Users []entity.User }{Users: users}}, nil
