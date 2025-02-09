@@ -8,8 +8,9 @@ import (
 
 	"clean-arch-template/config"
 
+	"github.com/Masterminds/squirrel"
+	tx "github.com/Thiht/transactor/pgx"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -22,19 +23,17 @@ const (
 
 // Postgres -.
 type (
-	Database interface {
-		Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
-		QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-		Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
-	}
-
 	Postgres struct {
 		maxPoolSize  int32
 		connAttempts int32
 		connTimeout  time.Duration
 		isolation    pgx.TxIsoLevel
 
-		Pool *pgxpool.Pool
+		Builder squirrel.StatementBuilderType
+
+		Pool       *pgxpool.Pool
+		Transactor *tx.Transactor
+		DBGetter   tx.DBGetter
 	}
 )
 
@@ -78,9 +77,18 @@ func New(cfg *config.Config, opts ...Option) (*Postgres, error) {
 		return nil, fmt.Errorf("postgres - NewPostgres - connAttempts == 0: %w", err)
 	}
 
+	// adding squirrel statement builder, if you don't like raw sql
+	pg.Builder = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
+
+	// will use dbGetter in repositories
+	// DBGetter is used to get the current DB handler from the context.
+	// It returns the current transaction if there is one, otherwise it will return the original DB.
+	pg.Transactor, pg.DBGetter = tx.NewTransactorFromPool(pg.Pool)
+
 	return pg, nil
 }
 
+// Close -.
 func (p *Postgres) Close() {
 	if p.Pool != nil {
 		p.Pool.Close()

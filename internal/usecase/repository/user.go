@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	tx "github.com/Thiht/transactor/pgx"
 	"log/slog"
 	"sync"
 	"unicode/utf8"
@@ -11,19 +12,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"clean-arch-template/internal/entity"
-	"clean-arch-template/pkg/database"
 )
 
 var ErrInvalidInputData = errors.New("invalid input data")
 
 type UserRepository struct {
-	db database.Database
+	db         tx.DBGetter
+	transactor *tx.Transactor
 }
 
-func NewUserRepository(once *sync.Once, db database.Database) *UserRepository {
+func NewUserRepository(once *sync.Once, db tx.DBGetter, transactor *tx.Transactor) *UserRepository {
 	var repo *UserRepository
 	once.Do(func() {
-		repo = &UserRepository{db: db}
+		repo = &UserRepository{
+			db:         db,
+			transactor: transactor,
+		}
 	})
 
 	return repo
@@ -45,7 +49,7 @@ func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 		OFFSET $1 LIMIT $2
 	`
 
-	rows, err := r.db.Query(ctx, query, offset, limit)
+	rows, err := r.db(ctx).Query(ctx, query, offset, limit)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -110,7 +114,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id int) (*entity.User,
 	   WHERE u.id=$1
 	`
 
-	rows, err := r.db.Query(ctx, query, id)
+	rows, err := r.db(ctx).Query(ctx, query, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -150,7 +154,7 @@ func (r *UserRepository) InsertUser(ctx context.Context, input *entity.User) (*e
 	var userID int
 
 	slog.Debug("Inserting user with name", "name", input.Name)
-	err := r.db.QueryRow(ctx, "INSERT INTO users(name) VALUES($1) RETURNING id", input.Name).Scan(&userID)
+	err := r.db(ctx).QueryRow(ctx, "INSERT INTO users(name) VALUES($1) RETURNING id", input.Name).Scan(&userID)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +165,7 @@ func (r *UserRepository) InsertUser(ctx context.Context, input *entity.User) (*e
 }
 
 func (r *UserRepository) UpdateUser(ctx context.Context, input *entity.User) (*entity.User, error) {
-	_, err := r.db.Exec(ctx, "UPDATE users SET name = $2 WHERE id = $1", input.ID, input.Name)
+	_, err := r.db(ctx).Exec(ctx, "UPDATE users SET name = $2 WHERE id = $1", input.ID, input.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +173,7 @@ func (r *UserRepository) UpdateUser(ctx context.Context, input *entity.User) (*e
 }
 
 func (r *UserRepository) DeleteUser(ctx context.Context, input *entity.User) error {
-	_, err := r.db.Exec(ctx, "DELETE FROM users WHERE id = $1", input.ID)
+	_, err := r.db(ctx).Exec(ctx, "DELETE FROM users WHERE id = $1", input.ID)
 	if err != nil {
 		return err
 	}

@@ -1,9 +1,11 @@
 module clean-arch-template
 
-go 1.22.7
+go 1.23.2
 
 require (
 	github.com/Eun/go-hit v0.5.23
+	github.com/Masterminds/squirrel v1.5.4
+	github.com/Thiht/transactor/pgx v0.0.0-20250203163023-bd69f1ccd6cb
 	github.com/ansrivas/fiberprometheus/v2 v2.7.0
 	github.com/danielgtaylor/huma/v2 v2.22.1
 	github.com/gofiber/contrib/otelfiber/v2 v2.1.1
@@ -11,15 +13,14 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.17.1
 	github.com/golang/mock v1.6.0
 	github.com/ilyakaznacheev/cleanenv v1.5.0
-	github.com/jackc/pgx/v5 v5.7.0
+	github.com/jackc/pgx/v5 v5.7.2
 	github.com/pashagolub/pgxmock/v4 v4.3.0
 	github.com/prometheus/client_golang v1.19.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/otel v1.29.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.29.0
 	go.opentelemetry.io/otel/sdk v1.29.0
 	go.opentelemetry.io/otel/trace v1.29.0
-	go.uber.org/mock v0.5.0
 )
 
 require (
@@ -44,11 +45,13 @@ require (
 	github.com/itchyny/timefmt-go v0.1.3 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/puddle/v2 v2.2.1 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/k0kubun/pp v3.0.1+incompatible // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
+	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
+	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
 	github.com/lunixbochs/vtclean v1.0.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -71,11 +74,12 @@ require (
 	go.opentelemetry.io/otel/metric v1.29.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/crypto v0.27.0 // indirect
+	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/net v0.28.0 // indirect
-	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/text v0.18.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/tools v0.22.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240822170219-fc7c04adadcd // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240822170219-fc7c04adadcd // indirect

@@ -88,7 +88,7 @@ func Run(router *fiber.App, cfg *config.Config) {
 
 	// Initialize use cases
 	o := sync.Once{}
-	userUseCase := usecase.NewUserUseCase(repository.NewUserRepository(&o, pg.Pool))
+	userUseCase := usecase.NewUserUseCase(repository.NewUserRepository(&o, pg.DBGetter, pg.Transactor))
 
 	// Initialize handlers
 	userHandler := v1.NewUserHandler(userUseCase)
