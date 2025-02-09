@@ -14,18 +14,16 @@ import (
 	"clean-arch-template/internal/usecase"
 )
 
-var (
-	mockUsers = []entity.User{
-		{
-			ID:   1,
-			Name: "Test User 1",
-		},
-		{
-			ID:   2,
-			Name: "Test User 2",
-		},
-	}
-)
+var mockUsers = []entity.User{
+	{
+		ID:   1,
+		Name: "Test User 1",
+	},
+	{
+		ID:   2,
+		Name: "Test User 2",
+	},
+}
 
 func setup(api huma.API) {
 	mockRepo := &mockUserRepository{users: mockUsers}

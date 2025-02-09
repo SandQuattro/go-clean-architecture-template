@@ -1,8 +1,9 @@
 package v1
 
 import (
-	"clean-arch-template/internal/entity"
 	"testing"
+
+	"clean-arch-template/internal/entity"
 
 	"github.com/stretchr/testify/assert"
 )

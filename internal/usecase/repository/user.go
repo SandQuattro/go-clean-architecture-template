@@ -3,10 +3,11 @@ package repository
 import (
 	"context"
 	"errors"
-	tx "github.com/Thiht/transactor/pgx"
 	"log/slog"
 	"sync"
 	"unicode/utf8"
+
+	tx "github.com/Thiht/transactor/pgx"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"

@@ -1,11 +1,13 @@
 package v1
 
 import (
-	"clean-arch-template/internal/entity"
 	"context"
-	"github.com/danielgtaylor/huma/v2"
 	"net/http"
 	"reflect"
+
+	"clean-arch-template/internal/entity"
+
+	"github.com/danielgtaylor/huma/v2"
 )
 
 type Handler interface {
@@ -34,7 +36,6 @@ func SetupHumaConfig() huma.Config {
 
 //nolint:funlen
 func SetupRoutes(api huma.API, userHandler Handler) {
-
 	registry := huma.NewMapRegistry("#/components/schemas/", huma.DefaultSchemaNamer)
 	userListSchema := huma.SchemaFromType(registry, reflect.TypeOf(&ListUserResponse{}))
 

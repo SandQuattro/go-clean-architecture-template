@@ -1,16 +1,18 @@
 package app
 
 import (
-	"clean-arch-template/internal/handler/rest/v1"
-	"clean-arch-template/internal/usecase"
-	"clean-arch-template/internal/usecase/repository"
 	"fmt"
-	"github.com/ansrivas/fiberprometheus/v2"
-	"github.com/danielgtaylor/huma/v2/adapters/humafiber"
-	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"log/slog"
 	"os"
 	"sync"
+
+	"clean-arch-template/internal/handler/rest/v1"
+	"clean-arch-template/internal/usecase"
+	"clean-arch-template/internal/usecase/repository"
+
+	"github.com/ansrivas/fiberprometheus/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humafiber"
+	"github.com/gofiber/fiber/v2/middleware/adaptor"
 
 	"clean-arch-template/config"
 	"clean-arch-template/pkg/database"
