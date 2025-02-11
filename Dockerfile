@@ -1,6 +1,6 @@
 ## ! FOR LOCAL TESTS ONLY !
 # Start from a small, secure base image
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23.2-alpine AS builder
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -9,13 +9,16 @@ WORKDIR /app
 COPY go.mod go.sum ./
 
 # Download the Go module dependencies
-RUN go mod download
+RUN apk add --no-cache git && \
+    go mod download
 
 # Copy the source code into the container
 COPY . .
 
 # Build the Go binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o app ./cmd/template/main.go
+RUN VERSION=$(git describe --tags --always --dirty) && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags "-X clean-arch-template/version.Version=$VERSION" \
+    -a -installsuffix cgo -o app ./cmd/template/main.go
 
 # Create a minimal production image
 FROM alpine:latest

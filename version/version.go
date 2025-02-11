@@ -7,9 +7,8 @@ import (
 	"clean-arch-template/config"
 )
 
-//go:embed VERSION
-var VERSION string
+var Version = "dev"
 
 func PrintVersion(cfg *config.Config) {
-	println(fmt.Sprintf("%s version %s", cfg.App.Name, VERSION))
+	println(fmt.Sprintf("%s version %s", cfg.App.Name, Version))
 }

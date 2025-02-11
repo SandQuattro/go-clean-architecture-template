@@ -3,6 +3,11 @@ PROJECT_BIN = $(PROJECT_DIR)/bin
 $(shell [ -f bin ] || mkdir -p $(PROJECT_BIN))
 PATH := $(PROJECT_BIN):$(PATH)
 
+VERSION=$(shell git describe --tags --always --dirty)
+.PHONY: build
+build: ## build with version
+	go build -ldflags "-X clean-arch-template/version.VERSION=$(VERSION)" ./cmd/...
+
 .PHONY: dc
 dc: ## run all services using docker compose
 	docker-compose up --remove-orphans --build
@@ -101,10 +106,6 @@ MIGRATE = $(PROJECT_BIN)/migrate
 .PHONY: new-migration
 new-migration: .install-migrate ## run migrations
 	$(MIGRATE) create -ext sql -dir ./migrations $(name)
-
-.PHONY: update-version
-update-version: ## update version
-	git describe --tags --always --dirty > version/VERSION
 
 .PHONY: help
 help:
