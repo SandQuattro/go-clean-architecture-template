@@ -5,13 +5,13 @@ go 1.23.2
 require (
 	github.com/Eun/go-hit v0.5.23
 	github.com/Masterminds/squirrel v1.5.4
+	github.com/Thiht/transactor v1.1.0
 	github.com/Thiht/transactor/pgx v0.0.0-20250203163023-bd69f1ccd6cb
 	github.com/ansrivas/fiberprometheus/v2 v2.7.0
 	github.com/danielgtaylor/huma/v2 v2.22.1
 	github.com/gofiber/contrib/otelfiber/v2 v2.1.1
 	github.com/gofiber/fiber/v2 v2.52.5
 	github.com/golang-migrate/migrate/v4 v4.17.1
-	github.com/golang/mock v1.6.0
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/pashagolub/pgxmock/v4 v4.3.0

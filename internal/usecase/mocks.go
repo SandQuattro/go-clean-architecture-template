@@ -100,6 +100,20 @@ func (mr *MockUserRepositoryMockRecorder) InsertUser(ctx, input any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUser", reflect.TypeOf((*MockUserRepository)(nil).InsertUser), ctx, input)
 }
 
+// TransferMoney mocks base method.
+func (m *MockUserRepository) TransferMoney(ctx context.Context, transfer entity.Transfer) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TransferMoney", ctx, transfer)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// TransferMoney indicates an expected call of TransferMoney.
+func (mr *MockUserRepositoryMockRecorder) TransferMoney(ctx, transfer any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TransferMoney", reflect.TypeOf((*MockUserRepository)(nil).TransferMoney), ctx, transfer)
+}
+
 // UpdateUser mocks base method.
 func (m *MockUserRepository) UpdateUser(ctx context.Context, input *entity.User) (*entity.User, error) {
 	m.ctrl.T.Helper()

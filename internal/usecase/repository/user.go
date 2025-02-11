@@ -2,7 +2,9 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"unicode/utf8"
@@ -15,7 +17,15 @@ import (
 	"clean-arch-template/internal/entity"
 )
 
-var ErrInvalidInputData = errors.New("invalid input data")
+var (
+	ErrInvalidInputData      = errors.New("invalid input data")
+	ErrInsufficientFunds     = errors.New("insufficient funds")
+	ErrAccountNotFound       = errors.New("account not found")
+	ErrNegativeAmount        = errors.New("transfer amount must be positive")
+	ErrSameAccount           = errors.New("cannot transfer to the same account")
+	ErrDestAccountNotFound   = errors.New("destination account not found")
+	ErrSourceAccountNotFound = errors.New("source account not found")
+)
 
 type UserRepository struct {
 	db         tx.DBGetter
@@ -218,4 +228,71 @@ func fillUserOrders(user *entity.User, orderID pgtype.Int4, orderAmount pgtype.I
 	}
 
 	return nil
+}
+
+func (r *UserRepository) TransferMoney(ctx context.Context, transfer entity.Transfer) error {
+	if transfer.FromAccountID == transfer.ToAccountID {
+		return ErrSameAccount
+	}
+
+	return r.transactor.WithinTransaction(ctx, func(ctx context.Context) error {
+		var sourceBalance float64
+
+		query := `SELECT balance FROM transactions WHERE id = $1`
+		if tx.IsWithinTransaction(ctx) {
+			query += ` FOR UPDATE`
+		}
+
+		err := r.db(ctx).QueryRow(ctx, query, transfer.FromAccountID).Scan(&sourceBalance)
+
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrSourceAccountNotFound
+		}
+
+		if err != nil {
+			return fmt.Errorf("failed to get source account balance: %w", err)
+		}
+
+		if transfer.Amount <= 0 {
+			return ErrNegativeAmount
+		}
+
+		if sourceBalance < transfer.Amount {
+			return ErrInsufficientFunds
+		}
+
+		var exists bool
+		err = r.db(ctx).QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM transactions WHERE id = $1)", transfer.ToAccountID).Scan(&exists)
+		if err != nil {
+			return fmt.Errorf("failed to check destination account: %w", err)
+		}
+
+		if !exists {
+			return ErrDestAccountNotFound
+		}
+
+		_, err = r.db(ctx).Exec(ctx, `
+			UPDATE transactions 
+			SET balance = balance - $1,
+			    updated_at = CURRENT_TIMESTAMP
+			WHERE id = $2
+		`, transfer.Amount, transfer.FromAccountID)
+
+		if err != nil {
+			return fmt.Errorf("failed to update source account: %w", err)
+		}
+
+		_, err = r.db(ctx).Exec(ctx, `
+			UPDATE transactions 
+			SET balance = balance + $1,
+			    updated_at = CURRENT_TIMESTAMP
+			WHERE id = $2
+		`, transfer.Amount, transfer.ToAccountID)
+
+		if err != nil {
+			return fmt.Errorf("failed to update destination account: %w", err)
+		}
+
+		return nil
+	})
 }

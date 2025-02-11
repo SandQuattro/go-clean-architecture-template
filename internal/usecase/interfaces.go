@@ -14,4 +14,6 @@ type UserRepository interface {
 	InsertUser(ctx context.Context, input *entity.User) (*entity.User, error)
 	UpdateUser(ctx context.Context, input *entity.User) (*entity.User, error)
 	DeleteUser(ctx context.Context, input *entity.User) error
+
+	TransferMoney(ctx context.Context, transfer entity.Transfer) error
 }
