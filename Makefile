@@ -107,7 +107,43 @@ MIGRATE = $(PROJECT_BIN)/migrate
 new-migration: .install-migrate ## run migrations
 	$(MIGRATE) create -ext sql -dir ./migrations $(name)
 
+# ----------------------------------- KUBERNETES -----------------------------------
+.PHONY: k8s-deploy
+k8s-deploy: ## Deploy application to Minikube
+	eval $$(minikube docker-env) && \
+	docker build -t clean-arch-template:latest . && \
+	kubectl apply -f k8s.yaml
+
+.PHONY: k8s-deploy-env
+k8s-deploy-env: ## Deploy application to Minikube with custom environment variables
+	@if [ -f .env ]; then \
+		echo "Creating ConfigMap and Secret from .env file..."; \
+		kubectl create configmap app-config --from-env-file=.env -o yaml --dry-run=client | kubectl apply -f -; \
+		kubectl create secret generic app-secrets --from-env-file=.env -o yaml --dry-run=client | kubectl apply -f -; \
+	else \
+		echo ".env file not found, using default values from k8s.yaml"; \
+	fi
+	eval $$(minikube docker-env) && \
+	docker build -t clean-arch-template:latest . && \
+	kubectl apply -f k8s.yaml
+
+.PHONY: k8s-delete
+k8s-delete: ## Delete application from Minikube
+	kubectl delete -f k8s.yaml
+
+.PHONY: k8s-status
+k8s-status: ## Check application status in Minikube
+	@echo "Checking pods status..."
+	kubectl get pods -l app=clean-arch-template
+	@echo "\nChecking service status..."
+	kubectl get services clean-arch-template
+	@echo "\nApplication URL:"
+	minikube service clean-arch-template --url
+
+.PHONY: k8s-logs
+k8s-logs: ## View application logs
+	kubectl logs -f deployment/clean-arch-template
+
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
-
