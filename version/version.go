@@ -3,6 +3,7 @@ package version
 import (
 	_ "embed"
 	"fmt"
+	"log/slog"
 
 	"clean-arch-template/config"
 )
@@ -10,5 +11,5 @@ import (
 var Version = "dev"
 
 func PrintVersion(cfg *config.Config) {
-	println(fmt.Sprintf("%s version %s", cfg.App.Name, Version))
+	slog.Info(fmt.Sprintf("Application %s version %s", cfg.App.Name, Version))
 }

@@ -22,8 +22,9 @@ type (
 	}
 
 	App struct {
-		Name    string `json:"name"    toml:"name"    env:"APP_NAME"`
-		Version string `json:"version" toml:"version" env:"APP_VERSION"`
+		Name        string `json:"name"        toml:"name"        env:"APP_NAME"`
+		Environment string `json:"environment" toml:"environment" env:"ENV_NAME" env-default:"dev"`
+		Debug       bool   `json:"debug"       toml:"debug"       env:"DEBUG"    env-default:"false"`
 	}
 
 	HTTP struct {
@@ -44,21 +45,24 @@ type (
 	}
 
 	Tracing struct {
-		URL string ` json:"url" env:"TRACING_URL"`
+		URL string ` json:"url" toml:"url" env:"TRACING_URL"`
 	}
 )
 
-// LoadConfig returns app config.
 func LoadConfig() (*Config, error) {
 	cfg := &Config{}
 
 	_, b, _, _ := runtime.Caller(0)
 	basePath := filepath.Dir(b)
-	configPath := filepath.Join(basePath, "config.json")
 
-	err := cleanenv.ReadConfig(configPath, cfg)
+	configTomlPath := filepath.Join(basePath, "config.toml")
+	err := cleanenv.ReadConfig(configTomlPath, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("config error: %w", err)
+		configJsonPath := filepath.Join(basePath, "config.json")
+		err = cleanenv.ReadConfig(configJsonPath, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("config error: %w", err)
+		}
 	}
 
 	err = cleanenv.ReadEnv(cfg)

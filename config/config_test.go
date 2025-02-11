@@ -31,7 +31,6 @@ func TestLoadConfig(t *testing.T) {
 	// Assert that the configuration was loaded correctly
 	assert.NotNil(t, cfg)
 	assert.Equal(t, "test-app", cfg.App.Name)
-	assert.Equal(t, "1.0.0", cfg.App.Version)
 	assert.Equal(t, "8080", cfg.HTTP.Port)
 	assert.Equal(t, "localhost", cfg.DB.DBHost)
 	assert.Equal(t, 5432, cfg.DB.DBPort)

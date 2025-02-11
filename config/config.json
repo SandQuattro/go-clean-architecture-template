@@ -1,7 +1,8 @@
 {
   "app": {
     "name": "clean_architecture_template",
-    "version": "0.0.1"
+    "environment": "prod",
+    "debug": false
   },
   "http": {
     "port": "8000"

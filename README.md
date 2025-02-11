@@ -23,7 +23,7 @@
 - Database: Postgres, clean SQL(PGX либа), самый быстрый вариант
 - Migrations: golang-migrate
 - Config: cleanenv
-- Observability: Logging slog (stdlib) json(production), Metrics, OpenTelemetry tracing, стандартный observability стек компании WB
+- Observability: Logging slog (stdlib) json(production), Metrics, OpenTelemetry tracing, стандартный observability стек
 
 ##  Запуск приложения локально
 DEBUG=true DB_PASSWORD=admin ENV_NAME=dev make cleandc

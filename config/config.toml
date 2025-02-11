@@ -1,6 +1,7 @@
 [app]
 name = "dbs_template"
-version = "0.0.1"
+environment = "prod"
+debug = false
 
 [http]
 port = "8000"
