@@ -238,7 +238,7 @@ func (r *UserRepository) TransferMoney(ctx context.Context, transfer entity.Tran
 	return r.transactor.WithinTransaction(ctx, func(ctx context.Context) error {
 		var sourceBalance float64
 
-		query := `SELECT balance FROM transactions WHERE id = $1`
+		query := `SELECT balance FROM users WHERE id = $1`
 		if tx.IsWithinTransaction(ctx) {
 			query += ` FOR UPDATE`
 		}
@@ -262,7 +262,7 @@ func (r *UserRepository) TransferMoney(ctx context.Context, transfer entity.Tran
 		}
 
 		var exists bool
-		err = r.db(ctx).QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM transactions WHERE id = $1)", transfer.ToAccountID).Scan(&exists)
+		err = r.db(ctx).QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", transfer.ToAccountID).Scan(&exists)
 		if err != nil {
 			return fmt.Errorf("failed to check destination account: %w", err)
 		}
@@ -272,7 +272,7 @@ func (r *UserRepository) TransferMoney(ctx context.Context, transfer entity.Tran
 		}
 
 		_, err = r.db(ctx).Exec(ctx, `
-			UPDATE transactions 
+			UPDATE users 
 			SET balance = balance - $1,
 			    updated_at = CURRENT_TIMESTAMP
 			WHERE id = $2
@@ -283,7 +283,7 @@ func (r *UserRepository) TransferMoney(ctx context.Context, transfer entity.Tran
 		}
 
 		_, err = r.db(ctx).Exec(ctx, `
-			UPDATE transactions 
+			UPDATE users 
 			SET balance = balance + $1,
 			    updated_at = CURRENT_TIMESTAMP
 			WHERE id = $2
@@ -291,6 +291,15 @@ func (r *UserRepository) TransferMoney(ctx context.Context, transfer entity.Tran
 
 		if err != nil {
 			return fmt.Errorf("failed to update destination account: %w", err)
+		}
+
+		_, err = r.db(ctx).Exec(ctx, `
+			INSERT INTO transactions(from_user_id, to_user_id, amount)
+			VALUES($1, $2, $3)
+		`, transfer.FromAccountID, transfer.ToAccountID, transfer.Amount)
+
+		if err != nil {
+			return fmt.Errorf("failed to create transaction: %w", err)
 		}
 
 		return nil

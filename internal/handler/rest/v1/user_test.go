@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/humatest"
@@ -223,7 +224,8 @@ func TestDeleteUserNotFound(t *testing.T) {
 
 // mockUserRepository implements usecase.UserRepository interface for testing
 type mockUserRepository struct {
-	users []entity.User
+	users        []entity.User
+	transactions []entity.Transaction
 }
 
 func (m *mockUserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]entity.User, error) {
@@ -262,7 +264,7 @@ func (m *mockUserRepository) UpdateUser(ctx context.Context, user *entity.User) 
 	return nil, fmt.Errorf("user not found")
 }
 
-func (m *mockUserRepository) DeleteUser(ctx context.Context, user *entity.User) error {
+func (m *mockUserRepository) DeleteUser(_ context.Context, user *entity.User) error {
 	for i, existingUser := range m.users {
 		if existingUser.ID == user.ID {
 			m.users = append(m.users[:i], m.users[i+1:]...)
@@ -270,4 +272,50 @@ func (m *mockUserRepository) DeleteUser(ctx context.Context, user *entity.User) 
 		}
 	}
 	return fmt.Errorf("user not found")
+}
+
+func (m *mockUserRepository) TransferMoney(_ context.Context, transfer entity.Transfer) error {
+	if transfer.Amount <= 0 {
+		return fmt.Errorf("negative amount not allowed")
+	}
+
+	var fromUser, toUser *entity.User
+	for i := range m.users {
+		if m.users[i].ID == int(transfer.FromAccountID) {
+			fromUser = &m.users[i]
+		}
+		if m.users[i].ID == int(transfer.ToAccountID) {
+			toUser = &m.users[i]
+		}
+	}
+
+	if fromUser == nil {
+		return fmt.Errorf("source account not found")
+	}
+	if toUser == nil {
+		return fmt.Errorf("destination account not found")
+	}
+
+	if transfer.FromAccountID == transfer.ToAccountID {
+		return fmt.Errorf("cannot transfer to the same account")
+	}
+
+	fromTransaction := entity.Transaction{
+		ID:        int64(len(m.transactions) + 1),
+		UserID:    transfer.FromAccountID,
+		Balance:   -transfer.Amount,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	toTransaction := entity.Transaction{
+		ID:        int64(len(m.transactions) + 2),
+		UserID:    transfer.ToAccountID,
+		Balance:   transfer.Amount,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	m.transactions = append(m.transactions, fromTransaction, toTransaction)
+	return nil
 }

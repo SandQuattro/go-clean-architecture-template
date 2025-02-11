@@ -38,4 +38,10 @@ type (
 			*entity.User
 		}
 	}
+
+	TransferMoneyRequest struct {
+		Body struct {
+			*entity.Transfer
+		}
+	}
 )

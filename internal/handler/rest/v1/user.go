@@ -129,3 +129,18 @@ func (uh *UserHandler) DeleteUser(ctx context.Context, req *FindUserRequest) (*s
 
 	return &struct{}{}, nil
 }
+
+func (uh *UserHandler) TransferMoney(ctx context.Context, req *TransferMoneyRequest) (*struct{}, error) {
+	tracer := otel.Tracer(tracerName)
+	_, span := tracer.Start(ctx, "TransferMoney", trace.WithSpanKind(trace.SpanKindServer))
+	defer span.End()
+
+	cmd := usecase.TransferMoneyCommand{Transfer: *req.Body.Transfer}
+
+	err := uh.userUC.TransferMoney(ctx, cmd)
+	if err != nil {
+		return nil, MapError(err)
+	}
+
+	return &struct{}{}, nil
+}

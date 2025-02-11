@@ -101,6 +101,20 @@ func (mr *MockUserUseCaseMockRecorder) FindUserByID(ctx, cmd any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUserByID", reflect.TypeOf((*MockUserUseCase)(nil).FindUserByID), ctx, cmd)
 }
 
+// TransferMoney mocks base method.
+func (m *MockUserUseCase) TransferMoney(ctx context.Context, cmd usecase.TransferMoneyCommand) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TransferMoney", ctx, cmd)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// TransferMoney indicates an expected call of TransferMoney.
+func (mr *MockUserUseCaseMockRecorder) TransferMoney(ctx, cmd any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TransferMoney", reflect.TypeOf((*MockUserUseCase)(nil).TransferMoney), ctx, cmd)
+}
+
 // UpdateUser mocks base method.
 func (m *MockUserUseCase) UpdateUser(ctx context.Context, cmd usecase.CreateUpdateUserCommand) (*entity.User, error) {
 	m.ctrl.T.Helper()

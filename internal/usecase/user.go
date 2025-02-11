@@ -76,3 +76,8 @@ func (uc *UserUseCase) DeleteUser(ctx context.Context, cmd DeleteUserByIDCommand
 	}
 	return uc.userRepo.DeleteUser(ctx, userByID)
 }
+
+func (uc *UserUseCase) TransferMoney(ctx context.Context, cmd TransferMoneyCommand) error {
+	err := uc.userRepo.TransferMoney(ctx, cmd.Transfer)
+	return err
+}

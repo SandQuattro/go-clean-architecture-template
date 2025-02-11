@@ -5,7 +5,6 @@ go 1.23.2
 require (
 	github.com/Eun/go-hit v0.5.23
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/Thiht/transactor v1.1.0
 	github.com/Thiht/transactor/pgx v0.0.0-20250203163023-bd69f1ccd6cb
 	github.com/ansrivas/fiberprometheus/v2 v2.7.0
 	github.com/danielgtaylor/huma/v2 v2.22.1

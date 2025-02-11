@@ -19,4 +19,8 @@ type (
 	DeleteUserByIDCommand struct {
 		ID int
 	}
+
+	TransferMoneyCommand struct {
+		entity.Transfer
+	}
 )

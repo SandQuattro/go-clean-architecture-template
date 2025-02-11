@@ -16,6 +16,7 @@ type Handler interface {
 	CreateUser(ctx context.Context, req *UserRequest) (*UserResponse, error)
 	UpdateUser(ctx context.Context, req *UpdateUserRequest) (*UserResponse, error)
 	DeleteUser(ctx context.Context, req *FindUserRequest) (*struct{}, error)
+	TransferMoney(ctx context.Context, req *TransferMoneyRequest) (*struct{}, error)
 }
 
 func SetupHumaConfig() huma.Config {
@@ -278,4 +279,20 @@ func SetupRoutes(api huma.API, userHandler Handler) {
 			},
 		},
 	}, userHandler.DeleteUser)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "Transfer money",
+		Method:        http.MethodPost,
+		Path:          "/transfer",
+		Summary:       "transfer money",
+		Description:   "transfer money.",
+		Tags:          []string{"Users"},
+		DefaultStatus: http.StatusNoContent,
+		Responses: map[string]*huma.Response{
+			"200": {
+				Description: "IUserUC deleted",
+				Content:     map[string]*huma.MediaType{},
+			},
+		},
+	}, userHandler.TransferMoney)
 }

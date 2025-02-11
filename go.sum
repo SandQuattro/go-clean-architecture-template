@@ -16,8 +16,6 @@ github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
-github.com/Thiht/transactor v1.1.0 h1:+8tBw22C8a7KjVykw4BbeEmqQbEN6jzI/0YdazMPYMQ=
-github.com/Thiht/transactor v1.1.0/go.mod h1:/ToWJvAI8rvnZKq25E7bZ3NZKUz2ONBzIKdToV8PLCE=
 github.com/Thiht/transactor/pgx v0.0.0-20250203163023-bd69f1ccd6cb h1:L5N2xAGwrS4ZpGb/Aq6Yy/+qfU6VCDaGPd7gt/HLH6Y=
 github.com/Thiht/transactor/pgx v0.0.0-20250203163023-bd69f1ccd6cb/go.mod h1:d/UdnY/PDogIRBOpVllEH8Dv9EEGd5FU2CRj2eCnA4c=
 github.com/aaw/maybe_tls v0.0.0-20160803104303-89c499bcc6aa h1:6yJyU8MlPBB2enGJdPciPlr8P+PC0nhCFHnSHYMirZI=

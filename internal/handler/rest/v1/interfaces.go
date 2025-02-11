@@ -15,4 +15,5 @@ type UserUseCase interface {
 	CreateUser(ctx context.Context, cmd usecase.CreateUpdateUserCommand) (*entity.User, error)
 	UpdateUser(ctx context.Context, cmd usecase.CreateUpdateUserCommand) (*entity.User, error)
 	DeleteUser(ctx context.Context, cmd usecase.DeleteUserByIDCommand) error
+	TransferMoney(ctx context.Context, cmd usecase.TransferMoneyCommand) error
 }
