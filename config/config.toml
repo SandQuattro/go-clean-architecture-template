@@ -1,5 +1,5 @@
 [app]
-name = "dbs_template"
+name = "template"
 environment = "prod"
 debug = false
 
@@ -12,8 +12,8 @@ url = "jaeger-collector.tracing:4317"
 [db]
 host = "postgres"
 port = 5432
-user = "postgres"
-name = "dbs"
+user = "user"
+name = "demo"
 pool_max = 2
 
 [logger]
