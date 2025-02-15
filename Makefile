@@ -3,6 +3,8 @@ PROJECT_BIN = $(PROJECT_DIR)/bin
 $(shell [ -f bin ] || mkdir -p $(PROJECT_BIN))
 PATH := $(PROJECT_BIN):$(PATH)
 
+.DEFAULT_GOAL := help
+
 VERSION=$(shell git describe --tags --always --dirty)
 .PHONY: build
 build: ## build with version
