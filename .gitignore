@@ -5,5 +5,6 @@ pg_volume*
 grafana_volume*
 prometheus_volume
 coverage.out
+.env
 
 bin/
