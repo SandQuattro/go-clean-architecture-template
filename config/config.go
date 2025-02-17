@@ -32,12 +32,14 @@ type (
 	}
 
 	DB struct {
-		DBHost     string `json:"host"     toml:"host"     env:"DB_HOST"`
-		DBPort     int    `json:"port"     toml:"port"     env:"DB_PORT"`
-		DBUser     string `json:"user"     toml:"user"     env:"DB_USER"`
-		DBPassword string `json:"password" toml:"password" env:"DB_PASSWORD" env-required:"true"`
-		DBName     string `json:"name"     toml:"name"     env:"DB_NAME"`
-		PoolMax    int32  `json:"pool_max" toml:"pool_max" env:"PG_POOL_MAX" env-required:"true"`
+		DBHost            string `json:"host"     toml:"host"     env:"DB_HOST"`
+		DBPort            int    `json:"port"     toml:"port"     env:"DB_PORT"`
+		DBUser            string `json:"user"     toml:"user"     env:"DB_USER"`
+		DBPassword        string `json:"password" toml:"password" env:"DB_PASSWORD" env-required:"true"`
+		DBName            string `json:"name"     toml:"name"     env:"DB_NAME"`
+		PoolMax           int32  `json:"pool_max" toml:"pool_max" env:"PG_POOL_MAX" env-required:"true"`
+		ConnectTimeout    int    `json:"connect_timeout" toml:"connect_timeout" env:"PG_POOL_CONN_TIMEOUT" env-default:"5"`
+		HealthCheckPeriod int    `json:"health_check_period" toml:"health_check_period" env:"PG_POOL_HEALTHCHECK" env-default:"1"`
 	}
 
 	Log struct {

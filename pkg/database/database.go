@@ -15,19 +15,21 @@ import (
 )
 
 const (
-	_defaultMaxPoolSize  = 1
-	_defaultConnAttempts = 10
-	_defaultConnTimeout  = time.Second
-	_defaultIsolation    = pgx.ReadCommitted
+	_defaultMaxPoolSize       = 1
+	_defaultConnAttempts      = 10
+	_defaultConnTimeout       = 1
+	_defaultHealthCheckPeriod = 1
+	_defaultIsolation         = pgx.ReadCommitted
 )
 
 // Postgres -.
 type (
 	Postgres struct {
-		maxPoolSize  int32
-		connAttempts int32
-		connTimeout  time.Duration
-		isolation    pgx.TxIsoLevel
+		maxPoolSize       int32
+		connAttempts      int32
+		connTimeout       int
+		healthCheckPeriod int
+		isolation         pgx.TxIsoLevel
 
 		Builder squirrel.StatementBuilderType
 
@@ -42,10 +44,11 @@ func New(cfg *config.Config, opts ...Option) (*Postgres, error) {
 	databaseURL := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
 
 	pg := &Postgres{
-		maxPoolSize:  _defaultMaxPoolSize,
-		connAttempts: _defaultConnAttempts,
-		connTimeout:  _defaultConnTimeout,
-		isolation:    _defaultIsolation,
+		maxPoolSize:       _defaultMaxPoolSize,
+		connAttempts:      _defaultConnAttempts,
+		connTimeout:       _defaultConnTimeout,
+		healthCheckPeriod: _defaultHealthCheckPeriod,
+		isolation:         _defaultIsolation,
 	}
 
 	// Custom options
@@ -58,7 +61,8 @@ func New(cfg *config.Config, opts ...Option) (*Postgres, error) {
 		return nil, fmt.Errorf("postgres - NewPostgres - pgxpool.ParseConfig: %w", err)
 	}
 
-	poolConfig.MaxConns = pg.maxPoolSize
+	// pgx pool settings
+	setupPoolConfig(cfg, pg, poolConfig)
 
 	for pg.connAttempts > 0 {
 		pg.Pool, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
@@ -66,9 +70,9 @@ func New(cfg *config.Config, opts ...Option) (*Postgres, error) {
 			break
 		}
 
-		slog.Debug(fmt.Sprintf("Postgres is trying to connect, attempts left: %d", pg.connAttempts))
+		slog.Debug(fmt.Sprintf("Postgres is trying to connect to %s, attempts left: %d", cfg.DBHost, pg.connAttempts))
 
-		time.Sleep(pg.connTimeout)
+		time.Sleep(time.Duration(pg.connTimeout) * time.Second)
 
 		pg.connAttempts--
 	}

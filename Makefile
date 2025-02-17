@@ -10,6 +10,10 @@ VERSION=$(shell git describe --tags --always --dirty)
 build: ## build with version
 	go build -ldflags "-X clean-arch-template/version.VERSION=$(VERSION)" ./cmd/...
 
+.PHONY: run
+run: ## run the application
+	go run ./cmd/template/main.go
+
 .PHONY: dc
 dc: ## run all services using docker compose
 	docker-compose up --remove-orphans --build

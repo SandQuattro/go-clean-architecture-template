@@ -13,13 +13,13 @@ func SetupLogger(cfg *config.Config) {
 
 	slog.SetLogLoggerLevel(cfg.Level)
 
-	if os.Getenv("DEBUG") == "true" || os.Getenv("ENV_NAME") != "prod" {
+	if cfg.Debug == true || cfg.Environment != "prod" {
 		opts = &slog.HandlerOptions{
 			AddSource: true,
 			Level:     slog.LevelDebug,
 		}
 		logger = slog.New(slog.NewTextHandler(os.Stdout, opts))
-	} else if os.Getenv("ENV_NAME") == "prod" {
+	} else if cfg.Environment == "prod" {
 		key := func(groups []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.MessageKey {
 				a.Key = "message"

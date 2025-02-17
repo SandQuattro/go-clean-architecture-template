@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"log/slog"
-	"os"
 	"sync"
 
 	"clean-arch-template/internal/handler/rest/v1"
@@ -61,7 +60,7 @@ func Run(router *fiber.App, cfg *config.Config) {
 	prometheus.SetSkipPaths([]string{"/ping"}) // Optional: Remove some paths from metrics
 	router.Use(prometheus.Middleware)
 
-	if os.Getenv("ENV_NAME") == "dev" {
+	if cfg.App.Environment == "dev" {
 		router.Use(pprof.New())
 		router.Get("/monitor", monitor.New())
 	}
@@ -71,7 +70,12 @@ func Run(router *fiber.App, cfg *config.Config) {
 	})
 
 	// Connect to Database
-	pg, err := database.New(cfg, database.MaxPoolSize(cfg.DB.PoolMax), database.Isolation(pgx.ReadCommitted))
+	pg, err := database.New(cfg,
+		database.MaxPoolSize(cfg.DB.PoolMax),
+		database.ConnTimeout(cfg.DB.ConnectTimeout),
+		database.HealthCheckPeriod(cfg.DB.HealthCheckPeriod),
+		database.Isolation(pgx.ReadCommitted),
+	)
 	if err != nil {
 		slog.Error("postgres connection failed", slog.String("error", err.Error()))
 		return

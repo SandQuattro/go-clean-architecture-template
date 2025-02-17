@@ -1,8 +1,6 @@
 package database
 
 import (
-	"time"
-
 	"github.com/jackc/pgx/v5"
 )
 
@@ -24,9 +22,16 @@ func ConnAttempts(attempts int32) Option {
 }
 
 // ConnTimeout -.
-func ConnTimeout(timeout time.Duration) Option {
+func ConnTimeout(timeout int) Option {
 	return func(c *Postgres) {
 		c.connTimeout = timeout
+	}
+}
+
+// HealthCheckPeriod -.
+func HealthCheckPeriod(period int) Option {
+	return func(c *Postgres) {
+		c.healthCheckPeriod = period
 	}
 }
 

@@ -15,7 +15,9 @@
     "port": 5432,
     "user": "postgres",
     "name": "demo",
-    "pool_max": 2
+    "pool_max": 2,
+    "connect_timeout": 2,
+    "health_check_period": 2
   },
   "logger": {
     "level": "DEBUG"
