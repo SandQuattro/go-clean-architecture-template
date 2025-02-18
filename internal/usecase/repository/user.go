@@ -45,10 +45,6 @@ func NewUserRepository(once *sync.Once, db tx.DBGetter, transactor *tx.Transacto
 }
 
 func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]entity.User, error) {
-	// Инициализируем карту пользователей и слайс для сохранения порядка
-	userMap := make(map[int]*entity.User)
-	var users []*entity.User
-
 	query := `
 		SELECT u.id,
 			   u.name,
@@ -60,7 +56,7 @@ func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 		OFFSET $1 LIMIT $2
 	`
 
-	rows, err := r.db(ctx).Query(ctx, query, offset, limit)
+	raw, err := r.db(ctx).Query(ctx, query, offset, limit)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -68,37 +64,42 @@ func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 		return nil, err
 	}
 
-	var (
-		userID      int
-		userName    string
-		orderID     pgtype.Int4
-		orderAmount pgtype.Int4
-	)
+	type row struct {
+		ID          int         `db:"id"`
+		Name        string      `db:"name"`
+		OrderID     pgtype.Int4 `db:"order_id"`
+		OrderAmount pgtype.Int4 `db:"order_amount"`
+	}
 
-	_, err = pgx.ForEachRow(rows, []any{&userID, &userName, &orderID, &orderAmount}, func() error {
-		// Проверяем, существует ли пользователь в map
-		var user *entity.User
+	rows, err := pgx.CollectRows(raw, pgx.RowToStructByName[row])
 
-		user, exists := userMap[userID]
+	if err != nil {
+		return nil, fmt.Errorf("failed to collect rows: %w", err)
+	}
+
+	// Using a map to deduplicate users while preserving order
+	userMap := make(map[int]*entity.User)
+	var users []*entity.User
+
+	// Process collected rows
+	for _, r := range rows {
+		user, exists := userMap[r.ID]
 		if !exists {
 			user = &entity.User{
-				ID:     userID,
-				Name:   userName,
+				ID:     r.ID,
+				Name:   r.Name,
 				Orders: make([]entity.Order, 0),
 			}
-			userMap[userID] = user
+			userMap[r.ID] = user
 			users = append(users, user)
 		}
 
-		err = fillUserOrders(user, orderID, orderAmount)
-		if err != nil {
-			return err
+		if err = fillUserOrders(user, r.OrderID, r.OrderAmount); err != nil {
+			return nil, fmt.Errorf("failed to fill user orders: %w", err)
 		}
+	}
 
-		return nil
-	})
-
-	// Преобразуем слайс указателей на пользователей в слайс значений
+	// Convert slice of pointers to slice of values
 	result := make([]entity.User, len(users))
 	for i, u := range users {
 		result[i] = *u
