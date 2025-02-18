@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"sync"
 	"testing"
 
 	tx "github.com/Thiht/transactor/pgx"
@@ -32,7 +31,7 @@ func TestUserRepository(t *testing.T) {
 		// Create mock transactor
 		transactor := &tx.Transactor{}
 
-		repo := NewUserRepository(&sync.Once{}, dbGetter, transactor)
+		repo := NewUserRepository(dbGetter, transactor)
 		return mockDb, repo
 	}
 
@@ -103,8 +102,8 @@ func TestUserRepository(t *testing.T) {
 		user.ID = 1
 		user.Name = "test"
 
-		rows := pgxmock.NewRows([]string{"id", "name", "order_id", "order_amount"}).
-			AddRow(user.ID, user.Name, nil, nil)
+		rows := pgxmock.NewRows([]string{"id", "name"}).
+			AddRow(user.ID, user.Name)
 
 		mockDb.ExpectQuery("SELECT (.+) FROM users").
 			WithArgs(user.ID).
@@ -128,9 +127,9 @@ func TestUserRepository(t *testing.T) {
 			{ID: 2, Name: "test2"},
 		}
 
-		rows := pgxmock.NewRows([]string{"id", "name", "order_id", "order_amount"})
+		rows := pgxmock.NewRows([]string{"id", "name"})
 		for _, u := range users {
-			rows.AddRow(u.ID, u.Name, nil, nil)
+			rows.AddRow(u.ID, u.Name)
 		}
 
 		mockDb.ExpectQuery("SELECT (.+) FROM users").
@@ -144,6 +143,73 @@ func TestUserRepository(t *testing.T) {
 			assert.Equal(t, users[i].ID, u.ID)
 			assert.Equal(t, users[i].Name, u.Name)
 		}
+
+		err = mockDb.ExpectationsWereMet()
+		require.NoError(t, err)
+	})
+
+	t.Run("test GetAllUsersWithOrders", func(t *testing.T) {
+		mockDb, repo := newMockDB()
+		defer mockDb.Close(context.Background())
+
+		users := []entity.User{
+			{ID: 1, Name: "test1"},
+			{ID: 2, Name: "test2"},
+		}
+
+		rows := pgxmock.NewRows([]string{"id", "name", "order_ids", "order_amounts"})
+		for _, u := range users {
+			rows.AddRow(u.ID, u.Name, nil, nil)
+		}
+
+		mockDb.ExpectQuery("SELECT (.+) FROM users").
+			WithArgs(0, 10).
+			WillReturnRows(rows)
+
+		result, err := repo.GetAllUsersWithOrders(ctx, 0, 10)
+		require.NoError(t, err)
+		assert.Equal(t, len(users), len(result))
+		for i, u := range result {
+			assert.Equal(t, users[i].ID, u.ID)
+			assert.Equal(t, users[i].Name, u.Name)
+		}
+
+		err = mockDb.ExpectationsWereMet()
+		require.NoError(t, err)
+	})
+
+	t.Run("test GetAllUsersWithOrders with orders", func(t *testing.T) {
+		mockDb, repo := newMockDB()
+		defer mockDb.Close(context.Background())
+
+		// Prepare rows: first user has orders, second user has no orders
+		rows := pgxmock.NewRows([]string{"id", "name", "order_ids", "order_amounts"}).
+			AddRow(1, "test1", []int64{10, 20}, []int64{100, 200}).
+			AddRow(2, "test2", nil, nil)
+
+		mockDb.ExpectQuery("SELECT (.+) FROM users").
+			WithArgs(0, 10).
+			WillReturnRows(rows)
+
+		result, err := repo.GetAllUsersWithOrders(context.Background(), 0, 10)
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+
+		// Assert results for first user with orders
+		u1 := result[0]
+		assert.Equal(t, 1, u1.ID)
+		assert.Equal(t, "test1", u1.Name)
+		require.Len(t, u1.Orders, 2)
+		assert.Equal(t, int64(10), u1.Orders[0].ID)
+		assert.Equal(t, int64(100), u1.Orders[0].Amount)
+		assert.Equal(t, int64(20), u1.Orders[1].ID)
+		assert.Equal(t, int64(200), u1.Orders[1].Amount)
+
+		// Assert results for second user with no orders
+		u2 := result[1]
+		assert.Equal(t, 2, u2.ID)
+		assert.Equal(t, "test2", u2.Name)
+		assert.Empty(t, u2.Orders)
 
 		err = mockDb.ExpectationsWereMet()
 		require.NoError(t, err)

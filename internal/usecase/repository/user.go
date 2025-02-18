@@ -6,13 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"sync"
 	"unicode/utf8"
 
 	tx "github.com/Thiht/transactor/pgx"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"clean-arch-template/internal/entity"
 )
@@ -20,11 +18,10 @@ import (
 var (
 	ErrInvalidInputData      = errors.New("invalid input data")
 	ErrInsufficientFunds     = errors.New("insufficient funds")
-	ErrAccountNotFound       = errors.New("account not found")
 	ErrNegativeAmount        = errors.New("transfer amount must be positive")
 	ErrSameAccount           = errors.New("cannot transfer to the same account")
-	ErrDestAccountNotFound   = errors.New("destination account not found")
 	ErrSourceAccountNotFound = errors.New("source account not found")
+	ErrDestAccountNotFound   = errors.New("destination account not found")
 )
 
 type UserRepository struct {
@@ -32,14 +29,11 @@ type UserRepository struct {
 	transactor *tx.Transactor
 }
 
-func NewUserRepository(once *sync.Once, db tx.DBGetter, transactor *tx.Transactor) *UserRepository {
-	var repo *UserRepository
-	once.Do(func() {
-		repo = &UserRepository{
-			db:         db,
-			transactor: transactor,
-		}
-	})
+func NewUserRepository(db tx.DBGetter, transactor *tx.Transactor) *UserRepository {
+	repo := &UserRepository{
+		db:         db,
+		transactor: transactor,
+	}
 
 	return repo
 }
@@ -47,12 +41,41 @@ func NewUserRepository(once *sync.Once, db tx.DBGetter, transactor *tx.Transacto
 func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]entity.User, error) {
 	query := `
 		SELECT u.id,
-			   u.name,
-			   o.id     as order_id,
-			   o.amount as order_amount
+		       u.name
 		FROM users u
-   		LEFT JOIN orders o ON u.id = o.user_id
-		ORDER BY u.id, o.id
+		LEFT JOIN orders o ON u.id = o.user_id
+		GROUP BY u.id, u.name
+		ORDER BY u.id
+		OFFSET $1 LIMIT $2
+	`
+
+	raw, err := r.db(ctx).Query(ctx, query, offset, limit)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	users, err := pgx.CollectRows(raw, pgx.RowToStructByName[entity.User])
+	if err != nil {
+		slog.Error("failed to collect rows", "error", err)
+		return nil, err
+	}
+
+	return users, nil
+}
+
+func (r *UserRepository) GetAllUsersWithOrders(ctx context.Context, offset, limit int) ([]entity.UserOrders, error) {
+	query := `
+		SELECT u.id,
+		       u.name,
+		       COALESCE(array_agg(o.id) FILTER (WHERE o.id IS NOT NULL), '{}') as order_ids,
+		       COALESCE(array_agg(o.amount) FILTER (WHERE o.id IS NOT NULL), '{}') as order_amounts
+		FROM users u
+		LEFT JOIN orders o ON u.id = o.user_id
+		GROUP BY u.id, u.name
+		ORDER BY u.id
 		OFFSET $1 LIMIT $2
 	`
 
@@ -65,10 +88,10 @@ func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 	}
 
 	type row struct {
-		ID          int         `db:"id"`
-		Name        string      `db:"name"`
-		OrderID     pgtype.Int4 `db:"order_id"`
-		OrderAmount pgtype.Int4 `db:"order_amount"`
+		ID           int     `db:"id"`
+		Name         string  `db:"name"`
+		OrderIDs     []int64 `db:"order_ids"`
+		OrderAmounts []int64 `db:"order_amounts"`
 	}
 
 	rows, err := pgx.CollectRows(raw, pgx.RowToStructByName[row])
@@ -77,76 +100,50 @@ func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 		return nil, fmt.Errorf("failed to collect rows: %w", err)
 	}
 
-	// Using a map to deduplicate users while preserving order
-	userMap := make(map[int]*entity.User)
-	var users []*entity.User
+	result := make([]entity.UserOrders, 0)
 
-	// Process collected rows
 	for _, r := range rows {
-		user, exists := userMap[r.ID]
-		if !exists {
-			user = &entity.User{
-				ID:     r.ID,
-				Name:   r.Name,
-				Orders: make([]entity.Order, 0),
+		user := entity.UserOrders{
+			ID:     r.ID,
+			Name:   r.Name,
+			Orders: make([]entity.Order, 0, len(r.OrderIDs)),
+		}
+
+		for i, orderID := range r.OrderIDs {
+			// Ensure arrays lengths match
+			if i < len(r.OrderAmounts) {
+				order := entity.Order{
+					ID:     orderID,
+					UserID: int64(r.ID),
+					Amount: r.OrderAmounts[i],
+				}
+				user.Orders = append(user.Orders, order)
 			}
-			userMap[r.ID] = user
-			users = append(users, user)
 		}
 
-		if err = fillUserOrders(user, r.OrderID, r.OrderAmount); err != nil {
-			return nil, fmt.Errorf("failed to fill user orders: %w", err)
-		}
-	}
-
-	// Convert slice of pointers to slice of values
-	result := make([]entity.User, len(users))
-	for i, u := range users {
-		result[i] = *u
+		result = append(result, user)
 	}
 
 	return result, nil
 }
 
 func (r *UserRepository) GetUserByID(ctx context.Context, id int) (*entity.User, error) {
-	var user entity.User
-	var found bool
-
-	var (
-		orderID     pgtype.Int4
-		orderAmount pgtype.Int4
-	)
-
 	query := `
-		SELECT u.id, 
-			   u.name, 
-			   o.id as order_id, 
-			   o.amount as order_amount 
-		FROM users u LEFT JOIN orders o ON u.id = o.user_id 
-	   WHERE u.id=$1
+		SELECT u.id, u.name
+		FROM users u
+		WHERE u.id=$1
+		GROUP BY u.id, u.name
 	`
 
-	rows, err := r.db(ctx).Query(ctx, query, id)
+	var user entity.User
+
+	err := r.db(ctx).QueryRow(ctx, query, id).Scan(&user.ID, &user.Name)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 
 	if err != nil {
 		return nil, err
-	}
-
-	_, err = pgx.ForEachRow(rows, []any{&user.ID, &user.Name, &orderID, &orderAmount}, func() error {
-		found = true
-		err = fillUserOrders(&user, orderID, orderAmount)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	if !found {
-		return nil, nil
 	}
 
 	return &user, nil
@@ -188,44 +185,6 @@ func (r *UserRepository) DeleteUser(ctx context.Context, input *entity.User) err
 	_, err := r.db(ctx).Exec(ctx, "DELETE FROM users WHERE id = $1", input.ID)
 	if err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func fillUserOrders(user *entity.User, orderID pgtype.Int4, orderAmount pgtype.Int4) error {
-	// Если заказ не NULL, обрабатываем его
-	if orderID.Valid {
-		id, err := orderID.Int64Value()
-		if err != nil {
-			return err
-		}
-		// Ищем или добавляем заказ у пользователя
-		var order *entity.Order
-		orderFound := false
-
-		for i := range user.Orders {
-			if user.Orders[i].ID == id.Int64 {
-				order = &user.Orders[i]
-				orderFound = true
-				break
-			}
-		}
-
-		if !orderFound {
-			amount, e := orderAmount.Int64Value()
-			if e != nil {
-				return e
-			}
-
-			order = &entity.Order{
-				ID:     id.Int64,
-				UserID: int64(user.ID),
-				Amount: amount.Int64,
-			}
-		}
-
-		user.Orders = append(user.Orders, *order)
 	}
 
 	return nil

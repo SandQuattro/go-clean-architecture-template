@@ -225,7 +225,15 @@ func TestDeleteUserNotFound(t *testing.T) {
 // mockUserRepository implements usecase.UserRepository interface for testing
 type mockUserRepository struct {
 	users        []entity.User
+	userOrders   []entity.UserOrders
 	transactions []entity.Transaction
+}
+
+func (m *mockUserRepository) GetAllUsersWithOrders(ctx context.Context, offset, limit int) ([]entity.UserOrders, error) {
+	if offset < 0 || limit <= 0 {
+		return nil, fmt.Errorf("invalid pagination parameters")
+	}
+	return m.userOrders, nil
 }
 
 func (m *mockUserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]entity.User, error) {

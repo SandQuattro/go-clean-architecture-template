@@ -70,6 +70,21 @@ func (mr *MockUserRepositoryMockRecorder) GetAllUsers(ctx, offset, limit any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllUsers", reflect.TypeOf((*MockUserRepository)(nil).GetAllUsers), ctx, offset, limit)
 }
 
+// GetAllUsersWithOrders mocks base method.
+func (m *MockUserRepository) GetAllUsersWithOrders(ctx context.Context, offset, limit int) ([]entity.UserOrders, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllUsersWithOrders", ctx, offset, limit)
+	ret0, _ := ret[0].([]entity.UserOrders)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllUsersWithOrders indicates an expected call of GetAllUsersWithOrders.
+func (mr *MockUserRepositoryMockRecorder) GetAllUsersWithOrders(ctx, offset, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllUsersWithOrders", reflect.TypeOf((*MockUserRepository)(nil).GetAllUsersWithOrders), ctx, offset, limit)
+}
+
 // GetUserByID mocks base method.
 func (m *MockUserRepository) GetUserByID(ctx context.Context, id int) (*entity.User, error) {
 	m.ctrl.T.Helper()

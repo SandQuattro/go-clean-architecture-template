@@ -3,9 +3,8 @@ package app
 import (
 	"fmt"
 	"log/slog"
-	"sync"
 
-	"clean-arch-template/internal/handler/rest/v1"
+	v1 "clean-arch-template/internal/handler/rest/v1"
 	"clean-arch-template/internal/usecase"
 	"clean-arch-template/internal/usecase/repository"
 
@@ -93,8 +92,7 @@ func Run(router *fiber.App, cfg *config.Config) {
 	api := humafiber.New(router, humaConfig)
 
 	// Initialize use cases
-	o := sync.Once{}
-	userUseCase := usecase.NewUserUseCase(repository.NewUserRepository(&o, pg.DBGetter, pg.Transactor))
+	userUseCase := usecase.NewUserUseCase(repository.NewUserRepository(pg.DBGetter, pg.Transactor))
 
 	// Initialize handlers
 	userHandler := v1.NewUserHandler(userUseCase)
