@@ -36,7 +36,7 @@ type App struct {
 // New подключает БД, применяет миграции, собирает middleware и DI.
 // Любая ошибка старта возвращается наверх — приложение не должно жить
 // с недоступной БД или битой схемой.
-func New(cfg *config.Config) (*App, error) {
+func New(ctx context.Context, cfg *config.Config) (*App, error) {
 	version.PrintVersion(cfg)
 
 	pg, err := database.New(cfg,
@@ -49,7 +49,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("postgres connection failed: %w", err)
 	}
 
-	if err := applyMigrations(cfg.DB); err != nil {
+	if err := applyMigrations(ctx, cfg.DB); err != nil {
 		pg.Close()
 		return nil, fmt.Errorf("apply migrations failed: %w", err)
 	}

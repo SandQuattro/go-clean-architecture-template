@@ -11,8 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 )
 
 func main() {
@@ -53,7 +51,7 @@ func run(cfg *config.Config) error {
 		}
 	}()
 
-	application, err := app.New(cfg)
+	application, err := app.New(ctx, cfg)
 	if err != nil {
 		return err
 	}
