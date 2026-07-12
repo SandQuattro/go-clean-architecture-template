@@ -23,7 +23,7 @@
 - Database: Postgres, clean SQL (PGX v5), транзакции через Thiht/transactor, деньги в int64 (минимальные единицы валюты)
 - Migrations: goose (pressly/goose v3), применяются автоматически при старте под pg advisory lock; ошибка миграции валит старт
 - Config: cleanenv (файл + env поверх, `CONFIG_PATH` для явного пути; таймауты — только env)
-- Observability: slog (JSON в prod, уровень из `LOG_LEVEL`), Prometheus + Grafana (конфиги в репозитории), OpenTelemetry tracing → Jaeger
+- Observability: общий интерфейс `logger.Logger`, бэкенды slog | zerolog (`LOG_BACKEND`, JSON в prod, уровень из `LOG_LEVEL`), trace_id/span_id в каждой записи с активным спаном, Prometheus + Grafana (конфиги в репозитории), OpenTelemetry tracing → Jaeger
 - Lint: golangci-lint v2 (`make lint`), gofumpt как форматтер
 
 ## Запуск приложения локально
@@ -55,7 +55,7 @@
 - [x] Добавить еще интеграционных тестов
 - [ ] Привести все тесты в порядок, добавить покрытие > 80%
 - [x] Перевести миграции на goose
-- [ ] Общий интерфейс логгера (slog / zerolog за одной абстракцией)
+- [x] Общий интерфейс логгера (slog / zerolog за одной абстракцией)
 
 ## Baseline существующей БД (переход с golang-migrate)
 Шаблон предполагает свежую БД. Если схема уже создана golang-migrate:

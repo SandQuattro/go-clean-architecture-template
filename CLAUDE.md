@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Go 1.26 Clean Architecture template: REST API built on Fiber v2 + Huma v2 (OpenAPI 3.1) over PostgreSQL (pgx v5), with slog logging, Prometheus metrics, and OpenTelemetry tracing. Module name: `clean-arch-template`.
+Go 1.26 Clean Architecture template: REST API built on Fiber v2 + Huma v2 (OpenAPI 3.1) over PostgreSQL (pgx v5), with a pluggable logger (slog/zerolog behind pkg/logger.Logger), Prometheus metrics, and OpenTelemetry tracing. Module name: `clean-arch-template`.
 
 Note: huma is pinned to v2.37.0 — it is the last version whose `humafiber` adapter targets Fiber v2 (v2.38+ requires Fiber v3, whose otelfiber/fiberprometheus ecosystem is not ready yet).
 
@@ -41,8 +41,8 @@ Dependency rule (inner layers know nothing about outer ones): `entity` ← `usec
 - `internal/usecase` — business logic and validation (pagination bounds, user-name rules, transfer invariants). Inputs are command structs (`commands.go`). Imports only entity.
 - `internal/usecase/repository` — pgx implementation of `usecase.UserRepository`. Raw SQL with `pgx.CollectRows`/`RowToStructByName`. Declares its own consumer-side `Transactor` interface.
 - `internal/handler/rest/v1` — Huma handlers with transport DTOs (`schemas.go`), entity↔DTO mapping (`converter.go`), domain→HTTP error mapping (`errors.go`, `MapError`).
-- `internal/app` — composition root: `app.New(cfg)` connects DB, applies migrations, builds Fiber (with Read/Write/Idle timeouts) and middlewares, wires DI; `app.Run(ctx)` serves until the context is cancelled, then drains with `ShutdownTimeout` and closes the DB pool. Startup errors propagate to `main` — no silent zombie process.
-- `cmd/template/main.go` — config load, slog setup, OTel init, `signal.NotifyContext`; tracer shuts down after the server drains.
+- `internal/app` — composition root: `app.New(ctx, cfg, log)` connects DB, applies migrations, builds Fiber (with Read/Write/Idle timeouts) and middlewares, wires DI; `app.Run(ctx)` serves until the context is cancelled, then drains with `ShutdownTimeout` and closes the DB pool. Startup errors propagate to `main` — no silent zombie process.
+- `cmd/template/main.go` — config load, logger init, OTel init, `signal.NotifyContext`; tracer shuts down after the server drains.
 - `config` — cleanenv: `CONFIG_PATH` env, or `config/config.toml` / `config.json` from CWD, falling back to the package source dir; env overrides files. `DB.DSN()` is the single connection-string source (pool + migrator). Durations (HTTP timeouts) are env-only.
 - `pkg/database` — pgxpool wrapper: functional options (min/max pool, timeouts), connect retries, and the transactor.
 
@@ -55,6 +55,7 @@ Dependency rule (inner layers know nothing about outer ones): `entity` ← `usec
 - **Request validation split**: structural validation lives in Huma schema tags (`minimum`, `minLength` → HTTP 422 before the handler runs; unknown body fields are rejected); business validation lives in the usecase (→ 400/404/409 via `MapError`). `PUT /user/{id}` takes the ID from the path only.
 - **Tracing**: handlers do `ctx, span := otel.Tracer(...).Start(ctx, ...)` and pass the new ctx down; otelfiber owns the server span, handler spans are internal.
 - **Testing per layer**: usecase and handler tests use gomock / an in-memory fake repo; repository tests use pgxmock with a `fakeTransactor`; integration tests hit the running HTTP API.
+- **Logging**: only through `pkg/logger.Logger` (ctx-first methods, injected via DI from `main`; no global slog); `logger.New` selects the backend by `LOG_BACKEND` (slog default, or zerolog); tests use `loggertest.Fake`; usecase/repository layers do not log.
 
 ### Runtime endpoints
 
