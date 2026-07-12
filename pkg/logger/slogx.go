@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"runtime"
+	"time"
 
 	"clean-arch-template/config"
 )
@@ -66,8 +68,22 @@ func (s *slogLogger) With(args ...any) Logger {
 }
 
 func (s *slogLogger) log(ctx context.Context, level slog.Level, msg string, args []any) {
+	if !s.l.Enabled(ctx, level) {
+		return
+	}
+
+	// Пишем запись через Handler с PC вызывающего кода: прямой вызов
+	// s.l.Log добавил бы фреймы обёртки и сломал AddSource (source
+	// указывал бы на этот файл, а не на место вызова).
+	var pcs [1]uintptr
+	runtime.Callers(3, pcs[:]) // skip: Callers, log, экспортируемый метод (Debug/Info/...)
+
+	r := slog.NewRecord(time.Now(), level, msg, pcs[0])
+
 	if tr := traceArgs(ctx); tr != nil {
 		args = append(append(make([]any, 0, len(args)+len(tr)), args...), tr...)
 	}
-	s.l.Log(ctx, level, msg, args...)
+	r.Add(args...)
+
+	_ = s.l.Handler().Handle(ctx, r)
 }

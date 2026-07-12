@@ -95,3 +95,18 @@ func TestTraceArgsWithoutSpan(t *testing.T) {
 
 	assert.Nil(t, traceArgs(context.Background()))
 }
+
+func TestSlogLoggerSourcePointsAtCaller(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{}
+	cfg.App.Environment = "dev"
+
+	var buf bytes.Buffer
+	log := newSlogLogger(cfg, &buf)
+
+	log.Info(context.Background(), "hello")
+
+	require.Contains(t, buf.String(), "logger_test.go", "source должен указывать на вызывающий файл, а не на slogx.go")
+	require.NotContains(t, buf.String(), "slogx.go")
+}
