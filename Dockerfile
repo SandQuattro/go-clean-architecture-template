@@ -1,6 +1,6 @@
 ## ! FOR LOCAL TESTS ONLY !
 # Start from a small, secure base image
-FROM golang:1.23.2-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -27,7 +27,6 @@ FROM alpine:latest
 # Reduce image size
 RUN apk update && \
     apk upgrade && \
-    apk add jq && \
     apk add --no-cache ca-certificates && \
     rm -rf /var/cache/apk/* && \
     rm -rf /tmp/*

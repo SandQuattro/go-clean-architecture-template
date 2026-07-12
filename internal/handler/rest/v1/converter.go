@@ -4,14 +4,29 @@ import (
 	"clean-arch-template/internal/entity"
 )
 
-func ToUserListOutputFromEntity(users []entity.User) ListUserResponse {
-	return ListUserResponse{
-		Body: struct{ Users []entity.User }{Users: users},
-	}
+func toUserDTO(user entity.User) UserDTO {
+	return UserDTO{ID: user.ID, Name: user.Name}
 }
 
-func ToUserOutputFromEntity(user *entity.User) UserResponse {
-	return UserResponse{
-		Body: struct{ *entity.User }{user},
+func ToUserListOutputFromEntity(users []entity.User) *ListUserResponse {
+	resp := &ListUserResponse{}
+	resp.Body.Users = make([]UserDTO, 0, len(users))
+
+	for _, user := range users {
+		resp.Body.Users = append(resp.Body.Users, toUserDTO(user))
+	}
+
+	return resp
+}
+
+func ToUserOutputFromEntity(user *entity.User) *UserResponse {
+	return &UserResponse{Body: toUserDTO(*user)}
+}
+
+func ToTransferEntity(dto TransferDTO) entity.Transfer {
+	return entity.Transfer{
+		FromAccountID: dto.FromAccountID,
+		ToAccountID:   dto.ToAccountID,
+		Amount:        dto.Amount,
 	}
 }

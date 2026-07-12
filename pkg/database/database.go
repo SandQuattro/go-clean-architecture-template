@@ -1,37 +1,32 @@
 package database
 
 import (
+	"clean-arch-template/config"
 	"context"
 	"fmt"
 	"log/slog"
 	"time"
 
-	"clean-arch-template/config"
-
-	"github.com/Masterminds/squirrel"
 	tx "github.com/Thiht/transactor/pgx"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
-	_defaultMaxPoolSize       = 1
+	_defaultMaxPoolSize       = 4
+	_defaultMinPoolSize       = 1
 	_defaultConnAttempts      = 10
 	_defaultConnTimeout       = 1
 	_defaultHealthCheckPeriod = 1
-	_defaultIsolation         = pgx.ReadCommitted
 )
 
 // Postgres -.
 type (
 	Postgres struct {
 		maxPoolSize       int32
+		minPoolSize       int32
 		connAttempts      int32
 		connTimeout       int
 		healthCheckPeriod int
-		isolation         pgx.TxIsoLevel
-
-		Builder squirrel.StatementBuilderType
 
 		Pool       *pgxpool.Pool
 		Transactor *tx.Transactor
@@ -41,14 +36,12 @@ type (
 
 // New -.
 func New(cfg *config.Config, opts ...Option) (*Postgres, error) {
-	databaseURL := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
-
 	pg := &Postgres{
 		maxPoolSize:       _defaultMaxPoolSize,
+		minPoolSize:       _defaultMinPoolSize,
 		connAttempts:      _defaultConnAttempts,
 		connTimeout:       _defaultConnTimeout,
 		healthCheckPeriod: _defaultHealthCheckPeriod,
-		isolation:         _defaultIsolation,
 	}
 
 	// Custom options
@@ -56,9 +49,9 @@ func New(cfg *config.Config, opts ...Option) (*Postgres, error) {
 		opt(pg)
 	}
 
-	poolConfig, err := pgxpool.ParseConfig(databaseURL)
+	poolConfig, err := pgxpool.ParseConfig(cfg.DSN())
 	if err != nil {
-		return nil, fmt.Errorf("postgres - NewPostgres - pgxpool.ParseConfig: %w", err)
+		return nil, fmt.Errorf("postgres - New - pgxpool.ParseConfig: %w", err)
 	}
 
 	// pgx pool settings
@@ -78,11 +71,8 @@ func New(cfg *config.Config, opts ...Option) (*Postgres, error) {
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("postgres - NewPostgres - connAttempts == 0: %w", err)
+		return nil, fmt.Errorf("postgres - New - connAttempts == 0: %w", err)
 	}
-
-	// adding squirrel statement builder, if you don't like raw sql
-	pg.Builder = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 
 	// will use dbGetter in repositories
 	// DBGetter is used to get the current DB handler from the context.

@@ -1,24 +1,21 @@
 package main
 
 import (
+	"clean-arch-template/config"
+	"clean-arch-template/internal/app"
+	"clean-arch-template/pkg/logger"
+	"clean-arch-template/pkg/tracing"
 	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"clean-arch-template/config"
-	"clean-arch-template/internal/app"
-	"clean-arch-template/pkg/logger"
-	"clean-arch-template/pkg/tracing"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	// Load environment variables
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -28,57 +25,40 @@ func main() {
 	// Initialize the logger
 	logger.SetupLogger(cfg)
 
-	err = run(ctx, cancel, cfg, slog.Default())
-	if err != nil {
-		slog.Error(fmt.Sprintf("Failed to run application: %v", err))
-		return
+	if err := run(cfg); err != nil {
+		slog.Error("application terminated", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
+
+	slog.Info("Server gracefully stopped, bye, bye!")
 }
 
-func run(ctx context.Context, cancelFunc context.CancelFunc, cfg *config.Config, logger *slog.Logger) error {
-	tracerProvider, err := tracing.InitOpenTelemetryGRPC(ctx, cfg, logger)
+func run(cfg *config.Config) error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	tracerProvider, err := tracing.InitOpenTelemetryGRPC(ctx, cfg, slog.Default())
 	if err != nil {
 		return err
 	}
 
-	// Run the application
-	application := app.NewApp()
-	go app.Run(application.Server, cfg)
-
-	stopped := make(chan struct{})
-	go func() {
-		// Используем буферизированный канал, как рекомендовано внутри signal.Notify функции
-		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-		// Блокируемся и ожидаем из канала quit - interrupt signal,
-		// чтобы сделать gracefully shutdown с таймаутом в 10 сек
-		<-quit
-
-		// тушим tracer
-		if err = tracerProvider.Shutdown(ctx); err != nil {
-			slog.Error(fmt.Sprintf("Failed to shutdown tracer provider gracefully, %v", err))
-		}
-
-		// Завершаем работу горутин
-		cancelFunc()
-
-		// Получили SIGINT (0x2) или SIGTERM (0xf), выполняем graceful shutdown
-		exitCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	// Трейсер гасится после остановки сервера (defer выполняется последним),
+	// чтобы не потерять спаны запросов, дренированных при shutdown.
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 		defer cancel()
 
-		if err = application.Server.ShutdownWithContext(exitCtx); err != nil {
-			logger.Error("gracefully shutdown error")
-		} else {
-			logger.Warn("Server stopped")
+		if err := tracerProvider.Shutdown(shutdownCtx); err != nil {
+			slog.Error("failed to shutdown tracer provider", slog.String("error", err.Error()))
 		}
-
-		close(stopped)
 	}()
 
-	<-stopped
+	application, err := app.New(cfg)
+	if err != nil {
+		return err
+	}
 
-	slog.Info("Server gracefully stopped, bye, bye!")
-
-	return nil
+	// Блокируемся до сигнала или ошибки сервера: ошибки старта и работы
+	// больше не теряются в горутине.
+	return application.Run(ctx)
 }

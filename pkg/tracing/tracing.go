@@ -2,10 +2,10 @@
 package tracing
 
 import (
+	"clean-arch-template/config"
 	"context"
 	"log/slog"
 
-	"clean-arch-template/config"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
@@ -20,7 +20,7 @@ const fraction = 0.6
 func InitOpenTelemetryGRPC(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*trace.TracerProvider, error) {
 	exporter, err := otlptracegrpc.New(
 		ctx,
-		otlptracegrpc.WithEndpoint(cfg.Tracing.URL),
+		otlptracegrpc.WithEndpoint(cfg.URL),
 		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {
@@ -31,7 +31,7 @@ func InitOpenTelemetryGRPC(ctx context.Context, cfg *config.Config, logger *slog
 	// labels/tags/resources that are common to all traces.
 	res := resource.NewWithAttributes(
 		semconv.SchemaURL,
-		semconv.ServiceNameKey.String(cfg.App.Name),
+		semconv.ServiceNameKey.String(cfg.Name),
 		// attribute.String("some-attribute", "some-value"), ...
 	)
 

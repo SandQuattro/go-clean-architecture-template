@@ -52,9 +52,6 @@ func PrintSystemData() {
 	// Go Version
 	slog.Info(fmt.Sprintf("Go Version: %s", runtime.Version()))
 
-	// Go Home (GOROOT)
-	slog.Info(fmt.Sprintf("Go Home (GOROOT): %s", runtime.GOROOT()))
-
 	slog.Info("=================================================================")
 }
 

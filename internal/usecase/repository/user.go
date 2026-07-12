@@ -1,41 +1,32 @@
 package repository
 
 import (
+	"clean-arch-template/internal/entity"
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
-	"unicode/utf8"
 
 	tx "github.com/Thiht/transactor/pgx"
 
 	"github.com/jackc/pgx/v5"
-
-	"clean-arch-template/internal/entity"
 )
 
-var (
-	ErrInvalidInputData      = errors.New("invalid input data")
-	ErrInsufficientFunds     = errors.New("insufficient funds")
-	ErrNegativeAmount        = errors.New("transfer amount must be positive")
-	ErrSameAccount           = errors.New("cannot transfer to the same account")
-	ErrSourceAccountNotFound = errors.New("source account not found")
-	ErrDestAccountNotFound   = errors.New("destination account not found")
-)
+// Transactor запускает функцию внутри транзакции БД; текущая транзакция
+// прокидывается через контекст (см. github.com/Thiht/transactor).
+type Transactor interface {
+	WithinTransaction(ctx context.Context, txFunc func(ctx context.Context) error) error
+}
 
 type UserRepository struct {
 	db         tx.DBGetter
-	transactor *tx.Transactor
+	transactor Transactor
 }
 
-func NewUserRepository(db tx.DBGetter, transactor *tx.Transactor) *UserRepository {
-	repo := &UserRepository{
+func NewUserRepository(db tx.DBGetter, transactor Transactor) *UserRepository {
+	return &UserRepository{
 		db:         db,
 		transactor: transactor,
 	}
-
-	return repo
 }
 
 func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]entity.User, error) {
@@ -43,24 +34,18 @@ func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 		SELECT u.id,
 		       u.name
 		FROM users u
-		LEFT JOIN orders o ON u.id = o.user_id
-		GROUP BY u.id, u.name
 		ORDER BY u.id
 		OFFSET $1 LIMIT $2
 	`
 
 	raw, err := r.db(ctx).Query(ctx, query, offset, limit)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query users: %w", err)
 	}
 
 	users, err := pgx.CollectRows(raw, pgx.RowToStructByName[entity.User])
 	if err != nil {
-		slog.Error("failed to collect rows", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("collect users: %w", err)
 	}
 
 	return users, nil
@@ -80,11 +65,8 @@ func (r *UserRepository) GetAllUsersWithOrders(ctx context.Context, offset, limi
 	`
 
 	raw, err := r.db(ctx).Query(ctx, query, offset, limit)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query users with orders: %w", err)
 	}
 
 	type row struct {
@@ -95,12 +77,11 @@ func (r *UserRepository) GetAllUsersWithOrders(ctx context.Context, offset, limi
 	}
 
 	rows, err := pgx.CollectRows(raw, pgx.RowToStructByName[row])
-
 	if err != nil {
-		return nil, fmt.Errorf("failed to collect rows: %w", err)
+		return nil, fmt.Errorf("collect users with orders: %w", err)
 	}
 
-	result := make([]entity.UserOrders, 0)
+	result := make([]entity.UserOrders, 0, len(rows))
 
 	for _, r := range rows {
 		user := entity.UserOrders{
@@ -131,125 +112,115 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id int) (*entity.User,
 	query := `
 		SELECT u.id, u.name
 		FROM users u
-		WHERE u.id=$1
-		GROUP BY u.id, u.name
+		WHERE u.id = $1
 	`
 
 	var user entity.User
 
 	err := r.db(ctx).QueryRow(ctx, query, id).Scan(&user.ID, &user.Name)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return nil, entity.ErrUserNotFound
 	}
-
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query user by id: %w", err)
 	}
 
 	return &user, nil
 }
 
 func (r *UserRepository) InsertUser(ctx context.Context, input *entity.User) (*entity.User, error) {
-	if input.Name == "" {
-		return nil, ErrInvalidInputData
-	}
-
-	// Проверка валидности UTF-8 строки
-	if !utf8.ValidString(input.Name) {
-		slog.Error("name is invalid")
-		return nil, ErrInvalidInputData
-	}
-
-	var userID int
-
-	slog.Debug("Inserting user with name", "name", input.Name)
-	err := r.db(ctx).QueryRow(ctx, "INSERT INTO users(name) VALUES($1) RETURNING id", input.Name).Scan(&userID)
+	err := r.db(ctx).QueryRow(ctx, "INSERT INTO users(name) VALUES($1) RETURNING id", input.Name).Scan(&input.ID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("insert user: %w", err)
 	}
-
-	input.ID = userID
 
 	return input, nil
 }
 
 func (r *UserRepository) UpdateUser(ctx context.Context, input *entity.User) (*entity.User, error) {
-	_, err := r.db(ctx).Exec(ctx, "UPDATE users SET name = $2 WHERE id = $1", input.ID, input.Name)
-	if err != nil {
-		return nil, err
+	// Одним запросом, без предварительного чтения: RETURNING отличает
+	// «обновлено» от «не найдено» атомарно.
+	err := r.db(ctx).
+		QueryRow(ctx, "UPDATE users SET name = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING id, name", input.ID, input.Name).
+		Scan(&input.ID, &input.Name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, entity.ErrUserNotFound
 	}
+	if err != nil {
+		return nil, fmt.Errorf("update user: %w", err)
+	}
+
 	return input, nil
 }
 
-func (r *UserRepository) DeleteUser(ctx context.Context, input *entity.User) error {
-	_, err := r.db(ctx).Exec(ctx, "DELETE FROM users WHERE id = $1", input.ID)
+func (r *UserRepository) DeleteUser(ctx context.Context, id int) error {
+	ct, err := r.db(ctx).Exec(ctx, "DELETE FROM users WHERE id = $1", id)
 	if err != nil {
-		return err
+		return fmt.Errorf("delete user: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return entity.ErrUserNotFound
 	}
 
 	return nil
 }
 
 func (r *UserRepository) TransferMoney(ctx context.Context, transfer entity.Transfer) error {
-	if transfer.FromAccountID == transfer.ToAccountID {
-		return ErrSameAccount
-	}
-
-	query := `SELECT balance FROM users WHERE id = $1`
-
 	return r.transactor.WithinTransaction(ctx, func(ctx context.Context) error {
-		var sourceBalance float64
-
-		if tx.IsWithinTransaction(ctx) {
-			query += ` FOR UPDATE`
-		}
-
-		err := r.db(ctx).QueryRow(ctx, query, transfer.FromAccountID).Scan(&sourceBalance)
-
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrSourceAccountNotFound
-		}
-
+		// Блокируем обе строки одним запросом в детерминированном порядке (ORDER BY id),
+		// иначе встречные переводы A→B и B→A взаимно блокируются (deadlock).
+		raw, err := r.db(ctx).Query(ctx,
+			"SELECT id, balance FROM users WHERE id = ANY($1) ORDER BY id FOR UPDATE",
+			[]int64{transfer.FromAccountID, transfer.ToAccountID},
+		)
 		if err != nil {
-			return fmt.Errorf("failed to get source account balance: %w", err)
+			return fmt.Errorf("lock accounts: %w", err)
 		}
 
-		if transfer.Amount <= 0 {
-			return ErrNegativeAmount
+		type account struct {
+			ID      int64 `db:"id"`
+			Balance int64 `db:"balance"`
 		}
 
+		accounts, err := pgx.CollectRows(raw, pgx.RowToStructByName[account])
+		if err != nil {
+			return fmt.Errorf("collect accounts: %w", err)
+		}
+
+		balances := make(map[int64]int64, len(accounts))
+		for _, acc := range accounts {
+			balances[acc.ID] = acc.Balance
+		}
+
+		sourceBalance, ok := balances[transfer.FromAccountID]
+		if !ok {
+			return entity.ErrSourceAccountNotFound
+		}
+		if _, ok := balances[transfer.ToAccountID]; !ok {
+			return entity.ErrDestAccountNotFound
+		}
 		if sourceBalance < transfer.Amount {
-			return ErrInsufficientFunds
-		}
-
-		var exists bool
-		err = r.db(ctx).QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", transfer.ToAccountID).Scan(&exists)
-		if err != nil {
-			return fmt.Errorf("failed to check destination account: %w", err)
-		}
-
-		if !exists {
-			return ErrDestAccountNotFound
+			return entity.ErrInsufficientFunds
 		}
 
 		_, err = r.db(ctx).Exec(ctx, `
-			UPDATE users 
+			UPDATE users
 			SET balance = balance - $1,
 			    updated_at = CURRENT_TIMESTAMP
 			WHERE id = $2
 		`, transfer.Amount, transfer.FromAccountID)
 		if err != nil {
-			return fmt.Errorf("failed to update source account: %w", err)
+			return fmt.Errorf("update source account: %w", err)
 		}
 
 		_, err = r.db(ctx).Exec(ctx, `
-			UPDATE users 
+			UPDATE users
 			SET balance = balance + $1,
 			    updated_at = CURRENT_TIMESTAMP
 			WHERE id = $2
 		`, transfer.Amount, transfer.ToAccountID)
 		if err != nil {
-			return fmt.Errorf("failed to update destination account: %w", err)
+			return fmt.Errorf("update destination account: %w", err)
 		}
 
 		_, err = r.db(ctx).Exec(ctx, `
@@ -257,7 +228,7 @@ func (r *UserRepository) TransferMoney(ctx context.Context, transfer entity.Tran
 			VALUES($1, $2, $3)
 		`, transfer.FromAccountID, transfer.ToAccountID, transfer.Amount)
 		if err != nil {
-			return fmt.Errorf("failed to create transaction: %w", err)
+			return fmt.Errorf("create transaction: %w", err)
 		}
 
 		return nil

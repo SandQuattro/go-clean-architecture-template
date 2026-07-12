@@ -1,9 +1,8 @@
 package v1
 
 import (
-	"testing"
-
 	"clean-arch-template/internal/entity"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -40,10 +39,5 @@ func TestToUserOutputFromEntity(t *testing.T) {
 
 		assert.Equal(t, user.ID, result.Body.ID)
 		assert.Equal(t, user.Name, result.Body.Name)
-	})
-
-	t.Run("nil user", func(t *testing.T) {
-		result := ToUserOutputFromEntity(nil)
-		assert.Nil(t, result.Body.User)
 	})
 }

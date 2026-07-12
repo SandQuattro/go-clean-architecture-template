@@ -1,10 +1,9 @@
 package v1
 
 import (
-	"context"
-
 	"clean-arch-template/internal/entity"
 	"clean-arch-template/internal/usecase"
+	"context"
 )
 
 //go:generate mockgen -source=interfaces.go -destination=./mocks.go -package=v1

@@ -13,7 +13,7 @@ import (
 )
 
 func setupPoolConfig(cfg *config.Config, pg *Postgres, poolConfig *pgxpool.Config) {
-	poolConfig.MinConns = 1 // Ensure we keep at least one connection for health checks
+	poolConfig.MinConns = pg.minPoolSize // Keep warm connections for health checks and latency spikes
 	poolConfig.MaxConns = pg.maxPoolSize
 	poolConfig.ConnConfig.ConnectTimeout = time.Duration(pg.connTimeout) * time.Second
 	poolConfig.HealthCheckPeriod = time.Duration(pg.healthCheckPeriod) * time.Minute
@@ -28,9 +28,9 @@ func setupPoolConfig(cfg *config.Config, pg *Postgres, poolConfig *pgxpool.Confi
 			},
 		}
 
-		poolConfig.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
+		poolConfig.PrepareConn = func(ctx context.Context, conn *pgx.Conn) (bool, error) {
 			slog.Debug("[PGPOOL] attempting to acquire connection")
-			return true
+			return true, nil
 		}
 
 		poolConfig.AfterRelease = func(conn *pgx.Conn) bool {
@@ -49,11 +49,9 @@ func setupPoolConfig(cfg *config.Config, pg *Postgres, poolConfig *pgxpool.Confi
 			slog.Debug("[PGPOOL] health check: connection being closed")
 		}
 	}
-
 }
 
-type SQLQueryTracer struct {
-}
+type SQLQueryTracer struct{}
 
 func (t *SQLQueryTracer) TraceQueryStart(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
 	// pgx uses SELECT 1 for health checks
@@ -83,11 +81,9 @@ func (t *SQLQueryTracer) TraceQueryEnd(_ context.Context, conn *pgx.Conn, data p
 	} else {
 		slog.Debug("[PGPOOL] SQL query completed", "rows_affected", data.CommandTag.RowsAffected())
 	}
-
 }
 
-type ConnectTracer struct {
-}
+type ConnectTracer struct{}
 
 func (t *ConnectTracer) TraceConnectStart(ctx context.Context, data pgx.TraceConnectStartData) context.Context {
 	slog.Debug("[PGPOOL] Connecting to database")

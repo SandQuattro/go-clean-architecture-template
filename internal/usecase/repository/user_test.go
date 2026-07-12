@@ -1,43 +1,48 @@
 package repository
 
 import (
+	"clean-arch-template/internal/entity"
 	"context"
 	"testing"
 
 	tx "github.com/Thiht/transactor/pgx"
+	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
-	"github.com/stretchr/testify/require"
-
-	"clean-arch-template/internal/entity"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// fakeTransactor исполняет функцию без реальной транзакции: pgxmock проверяет
+// сами запросы, а протокол Begin/Commit — зона ответственности библиотеки transactor.
+type fakeTransactor struct{}
+
+func (fakeTransactor) WithinTransaction(ctx context.Context, txFunc func(ctx context.Context) error) error {
+	return txFunc(ctx)
+}
+
+func newMockDB(t *testing.T) (pgxmock.PgxConnIface, *UserRepository) {
+	t.Helper()
+
+	mockDb, err := pgxmock.NewConn()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = mockDb.Close(context.Background()) })
+
+	dbGetter := tx.DBGetter(func(ctx context.Context) tx.DB {
+		return mockDb
+	})
+
+	repo := NewUserRepository(dbGetter, fakeTransactor{})
+
+	return mockDb, repo
+}
 
 func TestUserRepository(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 
-	// Function to create a new mock database for each test
-	newMockDB := func() (pgxmock.PgxConnIface, *UserRepository) {
-		mockDb, err := pgxmock.NewConn()
-		require.NoError(t, err)
-
-		// Create mock DBGetter that returns our mockDb
-		dbGetter := tx.DBGetter(func(ctx context.Context) tx.DB {
-			return mockDb
-		})
-
-		// Create mock transactor
-		transactor := &tx.Transactor{}
-
-		repo := NewUserRepository(dbGetter, transactor)
-		return mockDb, repo
-	}
-
 	t.Run("test InsertUser", func(t *testing.T) {
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
+		mockDb, repo := newMockDB(t)
 
 		var user entity.User
 		user.Name = "test"
@@ -51,56 +56,70 @@ func TestUserRepository(t *testing.T) {
 		assert.Equal(t, 1, result.ID)
 		assert.Equal(t, "test", result.Name)
 
-		err = mockDb.ExpectationsWereMet()
-		require.NoError(t, err)
+		require.NoError(t, mockDb.ExpectationsWereMet())
 	})
 
 	t.Run("test UpdateUser", func(t *testing.T) {
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
+		mockDb, repo := newMockDB(t)
 
-		var user entity.User
-		user.ID = 1
-		user.Name = "test"
+		user := entity.User{ID: 1, Name: "test"}
 
-		mockDb.ExpectExec("UPDATE users").
+		mockDb.ExpectQuery("UPDATE users").
 			WithArgs(user.ID, user.Name).
-			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+			WillReturnRows(pgxmock.NewRows([]string{"id", "name"}).AddRow(1, "test"))
 
 		result, err := repo.UpdateUser(ctx, &user)
 		require.NoError(t, err)
 		assert.Equal(t, user.ID, result.ID)
 		assert.Equal(t, user.Name, result.Name)
 
-		err = mockDb.ExpectationsWereMet()
-		require.NoError(t, err)
+		require.NoError(t, mockDb.ExpectationsWereMet())
+	})
+
+	t.Run("test UpdateUser not found", func(t *testing.T) {
+		mockDb, repo := newMockDB(t)
+
+		mockDb.ExpectQuery("UPDATE users").
+			WithArgs(999, "ghost").
+			WillReturnError(pgx.ErrNoRows)
+
+		result, err := repo.UpdateUser(ctx, &entity.User{ID: 999, Name: "ghost"})
+		require.ErrorIs(t, err, entity.ErrUserNotFound)
+		assert.Nil(t, result)
+
+		require.NoError(t, mockDb.ExpectationsWereMet())
 	})
 
 	t.Run("test DeleteUser", func(t *testing.T) {
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
-
-		var user entity.User
-		user.ID = 1
+		mockDb, repo := newMockDB(t)
 
 		mockDb.ExpectExec("DELETE FROM users").
-			WithArgs(user.ID).
+			WithArgs(1).
 			WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-		err := repo.DeleteUser(ctx, &user)
+		err := repo.DeleteUser(ctx, 1)
 		require.NoError(t, err)
 
-		err = mockDb.ExpectationsWereMet()
-		require.NoError(t, err)
+		require.NoError(t, mockDb.ExpectationsWereMet())
+	})
+
+	t.Run("test DeleteUser not found", func(t *testing.T) {
+		mockDb, repo := newMockDB(t)
+
+		mockDb.ExpectExec("DELETE FROM users").
+			WithArgs(999).
+			WillReturnResult(pgxmock.NewResult("DELETE", 0))
+
+		err := repo.DeleteUser(ctx, 999)
+		require.ErrorIs(t, err, entity.ErrUserNotFound)
+
+		require.NoError(t, mockDb.ExpectationsWereMet())
 	})
 
 	t.Run("test GetUserByID", func(t *testing.T) {
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
+		mockDb, repo := newMockDB(t)
 
-		var user entity.User
-		user.ID = 1
-		user.Name = "test"
+		user := entity.User{ID: 1, Name: "test"}
 
 		rows := pgxmock.NewRows([]string{"id", "name"}).
 			AddRow(user.ID, user.Name)
@@ -114,13 +133,25 @@ func TestUserRepository(t *testing.T) {
 		assert.Equal(t, user.ID, result.ID)
 		assert.Equal(t, user.Name, result.Name)
 
-		err = mockDb.ExpectationsWereMet()
-		require.NoError(t, err)
+		require.NoError(t, mockDb.ExpectationsWereMet())
+	})
+
+	t.Run("test GetUserByID not found", func(t *testing.T) {
+		mockDb, repo := newMockDB(t)
+
+		mockDb.ExpectQuery("SELECT (.+) FROM users").
+			WithArgs(999).
+			WillReturnError(pgx.ErrNoRows)
+
+		result, err := repo.GetUserByID(ctx, 999)
+		require.ErrorIs(t, err, entity.ErrUserNotFound)
+		assert.Nil(t, result)
+
+		require.NoError(t, mockDb.ExpectationsWereMet())
 	})
 
 	t.Run("test GetAllUsers", func(t *testing.T) {
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
+		mockDb, repo := newMockDB(t)
 
 		users := []entity.User{
 			{ID: 1, Name: "test1"},
@@ -138,19 +169,13 @@ func TestUserRepository(t *testing.T) {
 
 		result, err := repo.GetAllUsers(ctx, 0, 10)
 		require.NoError(t, err)
-		assert.Equal(t, len(users), len(result))
-		for i, u := range result {
-			assert.Equal(t, users[i].ID, u.ID)
-			assert.Equal(t, users[i].Name, u.Name)
-		}
+		assert.Equal(t, users, result)
 
-		err = mockDb.ExpectationsWereMet()
-		require.NoError(t, err)
+		require.NoError(t, mockDb.ExpectationsWereMet())
 	})
 
 	t.Run("test GetAllUsersWithOrders", func(t *testing.T) {
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
+		mockDb, repo := newMockDB(t)
 
 		users := []entity.User{
 			{ID: 1, Name: "test1"},
@@ -174,13 +199,11 @@ func TestUserRepository(t *testing.T) {
 			assert.Equal(t, users[i].Name, u.Name)
 		}
 
-		err = mockDb.ExpectationsWereMet()
-		require.NoError(t, err)
+		require.NoError(t, mockDb.ExpectationsWereMet())
 	})
 
 	t.Run("test GetAllUsersWithOrders with orders", func(t *testing.T) {
-		mockDb, repo := newMockDB()
-		defer mockDb.Close(context.Background())
+		mockDb, repo := newMockDB(t)
 
 		// Prepare rows: first user has orders, second user has no orders
 		rows := pgxmock.NewRows([]string{"id", "name", "order_ids", "order_amounts"}).
@@ -211,7 +234,82 @@ func TestUserRepository(t *testing.T) {
 		assert.Equal(t, "test2", u2.Name)
 		assert.Empty(t, u2.Orders)
 
-		err = mockDb.ExpectationsWereMet()
+		require.NoError(t, mockDb.ExpectationsWereMet())
+	})
+}
+
+func TestTransferMoney(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	transfer := entity.Transfer{FromAccountID: 1, ToAccountID: 2, Amount: 300}
+
+	lockRows := func(rows ...[]any) *pgxmock.Rows {
+		r := pgxmock.NewRows([]string{"id", "balance"})
+		for _, row := range rows {
+			r.AddRow(row...)
+		}
+		return r
+	}
+
+	t.Run("successful transfer locks both accounts and writes transaction", func(t *testing.T) {
+		mockDb, repo := newMockDB(t)
+
+		mockDb.ExpectQuery("SELECT id, balance FROM users").
+			WithArgs([]int64{1, 2}).
+			WillReturnRows(lockRows([]any{int64(1), int64(1000)}, []any{int64(2), int64(500)}))
+		mockDb.ExpectExec("UPDATE users").
+			WithArgs(int64(300), int64(1)).
+			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+		mockDb.ExpectExec("UPDATE users").
+			WithArgs(int64(300), int64(2)).
+			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+		mockDb.ExpectExec("INSERT INTO transactions").
+			WithArgs(int64(1), int64(2), int64(300)).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+		err := repo.TransferMoney(ctx, transfer)
 		require.NoError(t, err)
+
+		require.NoError(t, mockDb.ExpectationsWereMet())
+	})
+
+	t.Run("insufficient funds", func(t *testing.T) {
+		mockDb, repo := newMockDB(t)
+
+		mockDb.ExpectQuery("SELECT id, balance FROM users").
+			WithArgs([]int64{1, 2}).
+			WillReturnRows(lockRows([]any{int64(1), int64(100)}, []any{int64(2), int64(500)}))
+
+		err := repo.TransferMoney(ctx, transfer)
+		require.ErrorIs(t, err, entity.ErrInsufficientFunds)
+
+		require.NoError(t, mockDb.ExpectationsWereMet())
+	})
+
+	t.Run("source account not found", func(t *testing.T) {
+		mockDb, repo := newMockDB(t)
+
+		mockDb.ExpectQuery("SELECT id, balance FROM users").
+			WithArgs([]int64{1, 2}).
+			WillReturnRows(lockRows([]any{int64(2), int64(500)}))
+
+		err := repo.TransferMoney(ctx, transfer)
+		require.ErrorIs(t, err, entity.ErrSourceAccountNotFound)
+
+		require.NoError(t, mockDb.ExpectationsWereMet())
+	})
+
+	t.Run("destination account not found", func(t *testing.T) {
+		mockDb, repo := newMockDB(t)
+
+		mockDb.ExpectQuery("SELECT id, balance FROM users").
+			WithArgs([]int64{1, 2}).
+			WillReturnRows(lockRows([]any{int64(1), int64(1000)}))
+
+		err := repo.TransferMoney(ctx, transfer)
+		require.ErrorIs(t, err, entity.ErrDestAccountNotFound)
+
+		require.NoError(t, mockDb.ExpectationsWereMet())
 	})
 }

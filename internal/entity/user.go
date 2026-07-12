@@ -1,12 +1,12 @@
 package entity
 
 type User struct {
-	ID   int    `doc:"User ID" example:"1" json:"id"`
-	Name string `doc:"User name" example:"Mike" json:"name"`
+	ID   int    `json:"id"`
+	Name string `json:"name"`
 }
 
 type UserOrders struct {
-	ID     int     `doc:"User ID" example:"1" json:"id"`
-	Name   string  `doc:"User name" example:"Mike" json:"name"`
-	Orders []Order `doc:"User orders" json:"orders,omitempty"`
+	ID     int     `json:"id"`
+	Name   string  `json:"name"`
+	Orders []Order `json:"orders,omitempty"`
 }

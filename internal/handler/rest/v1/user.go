@@ -1,15 +1,10 @@
 package v1
 
 import (
+	"clean-arch-template/internal/usecase"
 	"context"
 
-	"clean-arch-template/internal/entity"
-	"clean-arch-template/internal/usecase"
-
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
-
-	"github.com/danielgtaylor/huma/v2"
 )
 
 var _ UserUseCase = (*usecase.UserUseCase)(nil)
@@ -25,14 +20,10 @@ func NewUserHandler(uc UserUseCase) *UserHandler {
 }
 
 func (uh *UserHandler) ListUsers(ctx context.Context, req *ListUserRequest) (*ListUserResponse, error) {
-	tracer := otel.Tracer(tracerName)
-	_, span := tracer.Start(ctx, "ListUsers", trace.WithSpanKind(trace.SpanKindServer))
+	// otelfiber уже создаёт server-спан; здесь — вложенный internal-спан,
+	// новый ctx передаётся вниз, чтобы спаны usecase/pgx стали его детьми.
+	ctx, span := otel.Tracer(tracerName).Start(ctx, "ListUsers")
 	defer span.End()
-
-	// Validate input parameters
-	if req.Page < 0 || req.Size <= 0 {
-		return nil, huma.Error400BadRequest("invalid pagination parameters: page must be equal or greater then 0 and size must be greater then 0")
-	}
 
 	cmd := usecase.FindAllUsersCommand{
 		Page: req.Page,
@@ -41,15 +32,14 @@ func (uh *UserHandler) ListUsers(ctx context.Context, req *ListUserRequest) (*Li
 
 	users, err := uh.userUC.FindAllUsers(ctx, cmd)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("error fetching users: ", err)
+		return nil, MapError(err)
 	}
 
-	return &ListUserResponse{Body: struct{ Users []entity.User }{Users: users}}, nil
+	return ToUserListOutputFromEntity(users), nil
 }
 
 func (uh *UserHandler) FindUserByID(ctx context.Context, req *FindUserRequest) (*UserResponse, error) {
-	tracer := otel.Tracer(tracerName)
-	_, span := tracer.Start(ctx, "FindUserByID", trace.WithSpanKind(trace.SpanKindServer))
+	ctx, span := otel.Tracer(tracerName).Start(ctx, "FindUserByID")
 	defer span.End()
 
 	cmd := usecase.FindUserByIDCommand{ID: req.ID}
@@ -58,72 +48,50 @@ func (uh *UserHandler) FindUserByID(ctx context.Context, req *FindUserRequest) (
 	if err != nil {
 		return nil, MapError(err)
 	}
-	if user == nil {
-		return nil, MapError(usecase.ErrUserNotFound)
-	}
 
-	resp := &UserResponse{
-		Body: struct{ *entity.User }{User: user},
-	}
-
-	return resp, nil
+	return ToUserOutputFromEntity(user), nil
 }
 
-func (uh *UserHandler) CreateUser(ctx context.Context, req *UserRequest) (*UserResponse, error) {
-	tracer := otel.Tracer(tracerName)
-	_, span := tracer.Start(ctx, "CreateUser", trace.WithSpanKind(trace.SpanKindServer))
+func (uh *UserHandler) CreateUser(ctx context.Context, req *CreateUserRequest) (*UserResponse, error) {
+	ctx, span := otel.Tracer(tracerName).Start(ctx, "CreateUser")
 	defer span.End()
 
-	if req.Body.User.Name == "" {
-		return nil, MapError(ErrEmptyName)
-	}
-
-	cmd := usecase.CreateUpdateUserCommand{User: req.Body.User}
+	cmd := usecase.CreateUpdateUserCommand{}
+	cmd.User.Name = req.Body.Name
 
 	user, err := uh.userUC.CreateUser(ctx, cmd)
 	if err != nil {
 		return nil, MapError(err)
 	}
 
-	resp := &UserResponse{
-		Body: struct{ *entity.User }{User: user},
-	}
-
-	return resp, nil
+	return ToUserOutputFromEntity(user), nil
 }
 
 func (uh *UserHandler) UpdateUser(ctx context.Context, req *UpdateUserRequest) (*UserResponse, error) {
-	tracer := otel.Tracer(tracerName)
-	_, span := tracer.Start(ctx, "UpdateUser", trace.WithSpanKind(trace.SpanKindServer))
+	ctx, span := otel.Tracer(tracerName).Start(ctx, "UpdateUser")
 	defer span.End()
 
-	if req.Body.User.Name == "" {
-		return nil, MapError(ErrEmptyName)
-	}
-
-	cmd := usecase.CreateUpdateUserCommand{User: req.Body.User}
+	// ID берётся только из пути: ID в теле игнорируется, чтобы PUT /user/5
+	// не мог обновить чужую запись.
+	cmd := usecase.CreateUpdateUserCommand{}
+	cmd.User.ID = req.ID
+	cmd.User.Name = req.Body.Name
 
 	user, err := uh.userUC.UpdateUser(ctx, cmd)
 	if err != nil {
 		return nil, MapError(err)
 	}
 
-	resp := &UserResponse{
-		Body: struct{ *entity.User }{User: user},
-	}
-
-	return resp, nil
+	return ToUserOutputFromEntity(user), nil
 }
 
 func (uh *UserHandler) DeleteUser(ctx context.Context, req *FindUserRequest) (*struct{}, error) {
-	tracer := otel.Tracer(tracerName)
-	_, span := tracer.Start(ctx, "DeleteUser", trace.WithSpanKind(trace.SpanKindServer))
+	ctx, span := otel.Tracer(tracerName).Start(ctx, "DeleteUser")
 	defer span.End()
 
 	cmd := usecase.DeleteUserByIDCommand{ID: req.ID}
 
-	err := uh.userUC.DeleteUser(ctx, cmd)
-	if err != nil {
+	if err := uh.userUC.DeleteUser(ctx, cmd); err != nil {
 		return nil, MapError(err)
 	}
 
@@ -131,14 +99,12 @@ func (uh *UserHandler) DeleteUser(ctx context.Context, req *FindUserRequest) (*s
 }
 
 func (uh *UserHandler) TransferMoney(ctx context.Context, req *TransferMoneyRequest) (*struct{}, error) {
-	tracer := otel.Tracer(tracerName)
-	_, span := tracer.Start(ctx, "TransferMoney", trace.WithSpanKind(trace.SpanKindServer))
+	ctx, span := otel.Tracer(tracerName).Start(ctx, "TransferMoney")
 	defer span.End()
 
-	cmd := usecase.TransferMoneyCommand{Transfer: *req.Body.Transfer}
+	cmd := usecase.TransferMoneyCommand{Transfer: ToTransferEntity(req.Body)}
 
-	err := uh.userUC.TransferMoney(ctx, cmd)
-	if err != nil {
+	if err := uh.userUC.TransferMoney(ctx, cmd); err != nil {
 		return nil, MapError(err)
 	}
 

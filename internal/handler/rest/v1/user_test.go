@@ -1,18 +1,14 @@
 package v1
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"testing"
-	"time"
-
-	"github.com/danielgtaylor/huma/v2"
-	"github.com/danielgtaylor/huma/v2/humatest"
-
 	"clean-arch-template/internal/entity"
 	"clean-arch-template/internal/usecase"
+	"context"
+	"encoding/json"
+	"net/http"
+	"testing"
+
+	"github.com/danielgtaylor/huma/v2/humatest"
 )
 
 var mockUsers = []entity.User{
@@ -26,30 +22,31 @@ var mockUsers = []entity.User{
 	},
 }
 
-func setup(api huma.API) {
-	mockRepo := &mockUserRepository{users: mockUsers}
+func newTestAPI(t *testing.T) humatest.TestAPI {
+	t.Helper()
+
+	_, api := humatest.New(t, SetupHumaConfig())
+
+	users := make([]entity.User, len(mockUsers))
+	copy(users, mockUsers)
+
+	mockRepo := &mockUserRepository{users: users}
 	userUC := usecase.NewUserUseCase(mockRepo)
+	SetupRoutes(api, NewUserHandler(userUC))
 
-	handler := NewUserHandler(userUC)
-
-	SetupRoutes(api, handler)
+	return api
 }
 
 func TestListUsersSuccess(t *testing.T) {
-	humaConfig := SetupHumaConfig()
-	_, api := humatest.New(t, humaConfig)
-	setup(api)
+	api := newTestAPI(t)
 
-	resp := api.Get("/users/0/10")
+	resp := api.Get("/users/1/10")
 	if resp.Code != http.StatusOK {
 		t.Fatalf("Expected status code %d, got %d", http.StatusOK, resp.Code)
 	}
 
 	var response struct {
-		Users []struct {
-			ID   int    `json:"id"`
-			Name string `json:"name"`
-		} `json:"Users"`
+		Users []UserDTO `json:"users"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
@@ -68,41 +65,33 @@ func TestListUsersSuccess(t *testing.T) {
 }
 
 func TestListUsersPageError(t *testing.T) {
-	humaConfig := SetupHumaConfig()
-	_, api := humatest.New(t, humaConfig)
-	setup(api)
+	api := newTestAPI(t)
 
-	resp := api.Get("/users/-1/10")
-	if resp.Code != http.StatusBadRequest {
-		t.Fatalf("Expected status code %d for invalid parameters, got %d", http.StatusBadRequest, resp.Code)
+	// page минимум 1 — валидируется схемой Huma до хендлера, поэтому 422.
+	resp := api.Get("/users/0/10")
+	if resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("Expected status code %d for invalid parameters, got %d", http.StatusUnprocessableEntity, resp.Code)
 	}
 }
 
 func TestListUsersSizeError(t *testing.T) {
-	humaConfig := SetupHumaConfig()
-	_, api := humatest.New(t, humaConfig)
-	setup(api)
+	api := newTestAPI(t)
 
-	resp := api.Get("/users/0/-1")
-	if resp.Code != http.StatusBadRequest {
-		t.Fatalf("Expected status code %d for invalid parameters, got %d", http.StatusBadRequest, resp.Code)
+	resp := api.Get("/users/1/-1")
+	if resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("Expected status code %d for invalid parameters, got %d", http.StatusUnprocessableEntity, resp.Code)
 	}
 }
 
 func TestFindUserByIDSuccess(t *testing.T) {
-	humaConfig := SetupHumaConfig()
-	_, api := humatest.New(t, humaConfig)
-	setup(api)
+	api := newTestAPI(t)
 
 	resp := api.Get("/user/1")
 	if resp.Code != http.StatusOK {
 		t.Fatalf("Expected status code %d, got %d", http.StatusOK, resp.Code)
 	}
 
-	var user struct {
-		ID   int    `json:"id"`
-		Name string `json:"name"`
-	}
+	var user UserDTO
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
@@ -114,13 +103,19 @@ func TestFindUserByIDSuccess(t *testing.T) {
 	}
 }
 
-func TestCreateUserSuccess(t *testing.T) {
-	humaConfig := SetupHumaConfig()
-	_, api := humatest.New(t, humaConfig)
-	setup(api)
+func TestFindUserByIDNotFound(t *testing.T) {
+	api := newTestAPI(t)
 
-	resp := api.Post("/user", map[string]interface{}{
-		"id":   0,
+	resp := api.Get("/user/999")
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("Expected status code %d for non-existent user, got %d", http.StatusNotFound, resp.Code)
+	}
+}
+
+func TestCreateUserSuccess(t *testing.T) {
+	api := newTestAPI(t)
+
+	resp := api.Post("/user", map[string]any{
 		"name": "New Test User",
 	})
 
@@ -128,10 +123,7 @@ func TestCreateUserSuccess(t *testing.T) {
 		t.Fatalf("Expected status code %d, got %d", http.StatusCreated, resp.Code)
 	}
 
-	var response struct {
-		ID   int    `json:"id"`
-		Name string `json:"name"`
-	}
+	var response UserDTO
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
@@ -139,31 +131,28 @@ func TestCreateUserSuccess(t *testing.T) {
 	if response.Name != "New Test User" {
 		t.Errorf("User name does not match. Got %s, want %s", response.Name, "New Test User")
 	}
+	if response.ID == 0 {
+		t.Errorf("Expected created user to have a non-zero ID")
+	}
 }
 
 func TestCreateUserInvalidData(t *testing.T) {
-	humaConfig := SetupHumaConfig()
-	_, api := humatest.New(t, humaConfig)
-	setup(api)
+	api := newTestAPI(t)
 
-	// Test with empty name
-	resp := api.Post("/user", map[string]interface{}{
-		"id":   0,
+	// Пустое имя отклоняется схемой (minLength=1) со статусом 422.
+	resp := api.Post("/user", map[string]any{
 		"name": "",
 	})
 
-	if resp.Code != http.StatusBadRequest {
-		t.Fatalf("Expected status code %d for empty name, got %d", http.StatusBadRequest, resp.Code)
+	if resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("Expected status code %d for empty name, got %d", http.StatusUnprocessableEntity, resp.Code)
 	}
 }
 
 func TestUpdateUserSuccess(t *testing.T) {
-	humaConfig := SetupHumaConfig()
-	_, api := humatest.New(t, humaConfig)
-	setup(api)
+	api := newTestAPI(t)
 
-	resp := api.Put("/user/1", map[string]interface{}{
-		"id":   1,
+	resp := api.Put("/user/1", map[string]any{
 		"name": "Updated Test User",
 	})
 
@@ -171,10 +160,7 @@ func TestUpdateUserSuccess(t *testing.T) {
 		t.Fatalf("Expected status code %d, got %d", http.StatusOK, resp.Code)
 	}
 
-	var response struct {
-		ID   int    `json:"id"`
-		Name string `json:"name"`
-	}
+	var response UserDTO
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
@@ -185,13 +171,24 @@ func TestUpdateUserSuccess(t *testing.T) {
 	}
 }
 
-func TestUpdateUserNotFound(t *testing.T) {
-	humaConfig := SetupHumaConfig()
-	_, api := humatest.New(t, humaConfig)
-	setup(api)
+func TestUpdateUserBodyIDRejected(t *testing.T) {
+	api := newTestAPI(t)
 
-	resp := api.Put("/user/999", map[string]interface{}{
-		"id":   999,
+	// ID принимается только из пути; лишние поля в теле отклоняются схемой.
+	resp := api.Put("/user/1", map[string]any{
+		"id":   7,
+		"name": "Attacker",
+	})
+
+	if resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("Expected status code %d for body with id field, got %d", http.StatusUnprocessableEntity, resp.Code)
+	}
+}
+
+func TestUpdateUserNotFound(t *testing.T) {
+	api := newTestAPI(t)
+
+	resp := api.Put("/user/999", map[string]any{
 		"name": "Non-existent User",
 	})
 
@@ -201,9 +198,7 @@ func TestUpdateUserNotFound(t *testing.T) {
 }
 
 func TestDeleteUserSuccess(t *testing.T) {
-	humaConfig := SetupHumaConfig()
-	_, api := humatest.New(t, humaConfig)
-	setup(api)
+	api := newTestAPI(t)
 
 	resp := api.Delete("/user/1")
 	if resp.Code != http.StatusNoContent {
@@ -212,9 +207,7 @@ func TestDeleteUserSuccess(t *testing.T) {
 }
 
 func TestDeleteUserNotFound(t *testing.T) {
-	humaConfig := SetupHumaConfig()
-	_, api := humatest.New(t, humaConfig)
-	setup(api)
+	api := newTestAPI(t)
 
 	resp := api.Delete("/user/999")
 	if resp.Code != http.StatusNotFound {
@@ -222,108 +215,132 @@ func TestDeleteUserNotFound(t *testing.T) {
 	}
 }
 
-// mockUserRepository implements usecase.UserRepository interface for testing
+func TestTransferMoneySuccess(t *testing.T) {
+	api := newTestAPI(t)
+
+	resp := api.Post("/transfer", map[string]any{
+		"from_account_id": 1,
+		"to_account_id":   2,
+		"amount":          100,
+	})
+
+	if resp.Code != http.StatusNoContent {
+		t.Fatalf("Expected status code %d, got %d", http.StatusNoContent, resp.Code)
+	}
+}
+
+func TestTransferMoneySameAccount(t *testing.T) {
+	api := newTestAPI(t)
+
+	resp := api.Post("/transfer", map[string]any{
+		"from_account_id": 1,
+		"to_account_id":   1,
+		"amount":          100,
+	})
+
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("Expected status code %d for same account transfer, got %d", http.StatusBadRequest, resp.Code)
+	}
+}
+
+func TestTransferMoneyDestinationNotFound(t *testing.T) {
+	api := newTestAPI(t)
+
+	resp := api.Post("/transfer", map[string]any{
+		"from_account_id": 1,
+		"to_account_id":   999,
+		"amount":          100,
+	})
+
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("Expected status code %d for missing destination, got %d", http.StatusNotFound, resp.Code)
+	}
+}
+
+func TestTransferMoneyInsufficientFunds(t *testing.T) {
+	api := newTestAPI(t)
+
+	resp := api.Post("/transfer", map[string]any{
+		"from_account_id": 1,
+		"to_account_id":   2,
+		"amount":          1000000,
+	})
+
+	if resp.Code != http.StatusConflict {
+		t.Fatalf("Expected status code %d for insufficient funds, got %d", http.StatusConflict, resp.Code)
+	}
+}
+
+// mockUserRepository implements usecase.UserRepository interface for testing.
+// Каждый существующий аккаунт считается имеющим баланс mockBalance:
+// большие суммы дают entity.ErrInsufficientFunds.
 type mockUserRepository struct {
-	users        []entity.User
-	userOrders   []entity.UserOrders
-	transactions []entity.Transaction
+	users []entity.User
 }
 
-func (m *mockUserRepository) GetAllUsersWithOrders(ctx context.Context, offset, limit int) ([]entity.UserOrders, error) {
-	if offset < 0 || limit <= 0 {
-		return nil, fmt.Errorf("invalid pagination parameters")
-	}
-	return m.userOrders, nil
+const mockBalance = 1000
+
+func (m *mockUserRepository) GetAllUsersWithOrders(_ context.Context, _, _ int) ([]entity.UserOrders, error) {
+	return nil, nil
 }
 
-func (m *mockUserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]entity.User, error) {
-	if offset < 0 || limit <= 0 {
-		return nil, fmt.Errorf("invalid pagination parameters")
-	}
+func (m *mockUserRepository) GetAllUsers(_ context.Context, _, _ int) ([]entity.User, error) {
 	return m.users, nil
 }
 
-func (m *mockUserRepository) GetUserByID(ctx context.Context, id int) (*entity.User, error) {
+func (m *mockUserRepository) GetUserByID(_ context.Context, id int) (*entity.User, error) {
 	for _, user := range m.users {
 		if user.ID == id {
 			return &user, nil
 		}
 	}
-	return nil, nil
+	return nil, entity.ErrUserNotFound
 }
 
-func (m *mockUserRepository) InsertUser(ctx context.Context, user *entity.User) (*entity.User, error) {
-	if user.Name == "" {
-		return nil, fmt.Errorf("name is required")
-	}
-
+func (m *mockUserRepository) InsertUser(_ context.Context, user *entity.User) (*entity.User, error) {
 	user.ID = len(m.users) + 1
 	m.users = append(m.users, *user)
 	return user, nil
 }
 
-func (m *mockUserRepository) UpdateUser(ctx context.Context, user *entity.User) (*entity.User, error) {
+func (m *mockUserRepository) UpdateUser(_ context.Context, user *entity.User) (*entity.User, error) {
 	for i, existingUser := range m.users {
 		if existingUser.ID == user.ID {
 			m.users[i] = *user
 			return user, nil
 		}
 	}
-	return nil, fmt.Errorf("user not found")
+	return nil, entity.ErrUserNotFound
 }
 
-func (m *mockUserRepository) DeleteUser(_ context.Context, user *entity.User) error {
+func (m *mockUserRepository) DeleteUser(_ context.Context, id int) error {
 	for i, existingUser := range m.users {
-		if existingUser.ID == user.ID {
+		if existingUser.ID == id {
 			m.users = append(m.users[:i], m.users[i+1:]...)
 			return nil
 		}
 	}
-	return fmt.Errorf("user not found")
+	return entity.ErrUserNotFound
 }
 
 func (m *mockUserRepository) TransferMoney(_ context.Context, transfer entity.Transfer) error {
-	if transfer.Amount <= 0 {
-		return fmt.Errorf("negative amount not allowed")
+	if !m.userExists(transfer.FromAccountID) {
+		return entity.ErrSourceAccountNotFound
 	}
-
-	var fromUser, toUser *entity.User
-	for i := range m.users {
-		if m.users[i].ID == int(transfer.FromAccountID) {
-			fromUser = &m.users[i]
-		}
-		if m.users[i].ID == int(transfer.ToAccountID) {
-			toUser = &m.users[i]
-		}
+	if !m.userExists(transfer.ToAccountID) {
+		return entity.ErrDestAccountNotFound
 	}
-
-	if fromUser == nil {
-		return fmt.Errorf("source account not found")
+	if transfer.Amount > mockBalance {
+		return entity.ErrInsufficientFunds
 	}
-	if toUser == nil {
-		return fmt.Errorf("destination account not found")
-	}
-
-	if transfer.FromAccountID == transfer.ToAccountID {
-		return fmt.Errorf("cannot transfer to the same account")
-	}
-
-	fromTransaction := entity.Transaction{
-		ID:        int64(len(m.transactions) + 1),
-		UserID:    transfer.FromAccountID,
-		Balance:   -transfer.Amount,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	toTransaction := entity.Transaction{
-		ID:        int64(len(m.transactions) + 2),
-		UserID:    transfer.ToAccountID,
-		Balance:   transfer.Amount,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	m.transactions = append(m.transactions, fromTransaction, toTransaction)
 	return nil
+}
+
+func (m *mockUserRepository) userExists(id int64) bool {
+	for _, user := range m.users {
+		if int64(user.ID) == id {
+			return true
+		}
+	}
+	return false
 }

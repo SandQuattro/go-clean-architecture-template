@@ -1,9 +1,5 @@
 package database
 
-import (
-	"github.com/jackc/pgx/v5"
-)
-
 // Option -.
 type Option func(*Postgres)
 
@@ -11,6 +7,13 @@ type Option func(*Postgres)
 func MaxPoolSize(size int32) Option {
 	return func(c *Postgres) {
 		c.maxPoolSize = size
+	}
+}
+
+// MinPoolSize -.
+func MinPoolSize(size int32) Option {
+	return func(c *Postgres) {
+		c.minPoolSize = size
 	}
 }
 
@@ -32,12 +35,5 @@ func ConnTimeout(timeout int) Option {
 func HealthCheckPeriod(period int) Option {
 	return func(c *Postgres) {
 		c.healthCheckPeriod = period
-	}
-}
-
-// Isolation Level -.
-func Isolation(isolation pgx.TxIsoLevel) Option {
-	return func(c *Postgres) {
-		c.isolation = isolation
 	}
 }

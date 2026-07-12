@@ -1,35 +1,39 @@
 package logger
 
 import (
+	"clean-arch-template/config"
 	"log/slog"
 	"os"
-
-	"clean-arch-template/config"
 )
 
+// SetupLogger настраивает глобальный slog: уровень берётся из конфига
+// (LOG_LEVEL), DEBUG=true принудительно опускает его до Debug.
+// prod — JSON, иначе — текст с source-позициями.
 func SetupLogger(cfg *config.Config) {
-	var opts *slog.HandlerOptions
-	var logger *slog.Logger
+	level := cfg.Level
+	if cfg.Debug {
+		level = slog.LevelDebug
+	}
 
-	slog.SetLogLoggerLevel(cfg.Level)
+	var handler slog.Handler
 
-	if cfg.Debug == true || cfg.Environment != "prod" {
-		opts = &slog.HandlerOptions{
-			AddSource: true,
-			Level:     slog.LevelDebug,
-		}
-		logger = slog.New(slog.NewTextHandler(os.Stdout, opts))
-	} else if cfg.Environment == "prod" {
-		key := func(groups []string, a slog.Attr) slog.Attr {
+	if cfg.Environment == "prod" {
+		renameMsgKey := func(groups []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.MessageKey {
 				a.Key = "message"
-				return a
 			}
 			return a
 		}
-		opts = &slog.HandlerOptions{ReplaceAttr: key}
-		logger = slog.New(slog.NewJSONHandler(os.Stdout, opts))
+		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level:       level,
+			ReplaceAttr: renameMsgKey,
+		})
+	} else {
+		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			Level:     level,
+			AddSource: true,
+		})
 	}
 
-	slog.SetDefault(logger)
+	slog.SetDefault(slog.New(handler))
 }

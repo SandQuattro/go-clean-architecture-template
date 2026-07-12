@@ -1,12 +1,12 @@
 package app
 
 import (
+	"clean-arch-template/config"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
-	"clean-arch-template/config"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
@@ -16,12 +16,10 @@ const (
 	defaultTimeout  = time.Second
 )
 
+// applyMigrations применяет миграции при старте. Любая ошибка (включая dirty
+// state) возвращается наверх — сервис не должен принимать трафик на битой схеме.
+// В продакшене с несколькими репликами предпочтителен отдельный Job/initContainer.
 func applyMigrations(cfg config.DB) error {
-	databaseURL := fmt.Sprintf(
-		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
-		cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName,
-	)
-
 	var (
 		attempts = defaultAttempts
 		err      error
@@ -29,7 +27,7 @@ func applyMigrations(cfg config.DB) error {
 	)
 
 	for attempts > 0 {
-		m, err = migrate.New("file://migrations", databaseURL)
+		m, err = migrate.New("file://migrations", cfg.DSN())
 		if err == nil {
 			break
 		}
@@ -41,30 +39,27 @@ func applyMigrations(cfg config.DB) error {
 	}
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("migrate: postgres connect error: %s", err))
-		return err
+		return fmt.Errorf("migrate: postgres connect: %w", err)
 	}
 
-	err = m.Up()
-
 	defer func() {
-		err1, err2 := m.Close()
-		if err1 != nil {
-			slog.Error(fmt.Sprintf("failed close db conn: %s", err1.Error()))
+		srcErr, dbErr := m.Close()
+		if srcErr != nil {
+			slog.Error(fmt.Sprintf("migrate: close source: %s", srcErr))
 		}
-
-		if err2 != nil {
-			slog.Error(fmt.Sprintf("failed close db conn: %s", err2.Error()))
+		if dbErr != nil {
+			slog.Error(fmt.Sprintf("migrate: close db conn: %s", dbErr))
 		}
 	}()
 
-	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		slog.Error(fmt.Sprintf("Migrate: up error: %s", err))
-	}
+	err = m.Up()
 
-	if errors.Is(err, migrate.ErrNoChange) {
+	switch {
+	case errors.Is(err, migrate.ErrNoChange):
 		slog.Info("Migrate: no change")
 		return nil
+	case err != nil:
+		return fmt.Errorf("migrate: up: %w", err)
 	}
 
 	slog.Info("Migrate: up success")

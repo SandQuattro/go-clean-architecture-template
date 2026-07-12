@@ -16,6 +16,8 @@ metadata:
   name: app-secrets
 type: Opaque
 data:
+  # ПРИМЕР для локального Minikube: секрет в репозитории недопустим для прода —
+  # используйте External Secrets / Sealed Secrets / Vault.
   # admin encoded in base64
   DB_PASSWORD: YWRtaW4=
 ---

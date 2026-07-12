@@ -2,7 +2,8 @@ package usecase
 
 import (
 	"context"
-	"errors"
+	"unicode/utf8"
+
 	// !!! NO UPSTREAM DEPENDENCIES HERE, ONLY ENTITY/DOMAIN !!!
 	"clean-arch-template/internal/entity"
 )
@@ -11,73 +12,60 @@ type UserUseCase struct {
 	userRepo UserRepository
 }
 
-var ErrUserNotFound = errors.New("user not found")
-
 func NewUserUseCase(ur UserRepository) *UserUseCase {
 	return &UserUseCase{userRepo: ur}
 }
 
 func (uc *UserUseCase) FindAllUsers(ctx context.Context, cmd FindAllUsersCommand) ([]entity.User, error) {
-	// page 0, size 10 ->
-	var offset int
-	if cmd.Page == 1 {
-		cmd.Page = 0
-	}
-	offset = cmd.Page * cmd.Size
-	limit := cmd.Size
-
-	users, err := uc.userRepo.GetAllUsers(ctx, offset, limit)
-	if err != nil {
-		return nil, err
+	if cmd.Page < 1 || cmd.Size < 1 {
+		return nil, entity.ErrInvalidPagination
 	}
 
-	return users, nil
+	// Страницы нумеруются с 1: page=1 → строки [0, size).
+	offset := (cmd.Page - 1) * cmd.Size
+
+	return uc.userRepo.GetAllUsers(ctx, offset, cmd.Size)
 }
 
 func (uc *UserUseCase) FindUserByID(ctx context.Context, cmd FindUserByIDCommand) (*entity.User, error) {
-	user, err := uc.userRepo.GetUserByID(ctx, cmd.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	return user, nil
+	return uc.userRepo.GetUserByID(ctx, cmd.ID)
 }
 
 func (uc *UserUseCase) CreateUser(ctx context.Context, cmd CreateUpdateUserCommand) (*entity.User, error) {
-	user, err := uc.userRepo.InsertUser(ctx, &cmd.User)
-	if err != nil {
+	if err := validateUserName(cmd.User.Name); err != nil {
 		return nil, err
 	}
-	return user, nil
+
+	return uc.userRepo.InsertUser(ctx, &cmd.User)
 }
 
 func (uc *UserUseCase) UpdateUser(ctx context.Context, cmd CreateUpdateUserCommand) (*entity.User, error) {
-	userByID, err := uc.FindUserByID(ctx, FindUserByIDCommand{ID: cmd.User.ID})
-	if err != nil {
+	if err := validateUserName(cmd.User.Name); err != nil {
 		return nil, err
 	}
-	if userByID == nil {
-		return nil, ErrUserNotFound
-	}
-	user, err := uc.userRepo.UpdateUser(ctx, &cmd.User)
-	if err != nil {
-		return nil, err
-	}
-	return user, nil
+
+	return uc.userRepo.UpdateUser(ctx, &cmd.User)
 }
 
 func (uc *UserUseCase) DeleteUser(ctx context.Context, cmd DeleteUserByIDCommand) error {
-	userByID, err := uc.FindUserByID(ctx, FindUserByIDCommand{ID: cmd.ID})
-	if err != nil {
-		return err
-	}
-	if userByID == nil {
-		return ErrUserNotFound
-	}
-	return uc.userRepo.DeleteUser(ctx, userByID)
+	return uc.userRepo.DeleteUser(ctx, cmd.ID)
 }
 
 func (uc *UserUseCase) TransferMoney(ctx context.Context, cmd TransferMoneyCommand) error {
-	err := uc.userRepo.TransferMoney(ctx, cmd.Transfer)
-	return err
+	if cmd.Amount <= 0 {
+		return entity.ErrNegativeAmount
+	}
+	if cmd.FromAccountID == cmd.ToAccountID {
+		return entity.ErrSameAccount
+	}
+
+	return uc.userRepo.TransferMoney(ctx, cmd.Transfer)
+}
+
+func validateUserName(name string) error {
+	if name == "" || !utf8.ValidString(name) {
+		return entity.ErrInvalidUserName
+	}
+
+	return nil
 }

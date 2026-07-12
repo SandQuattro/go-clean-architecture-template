@@ -18,7 +18,7 @@ var (
 	attempts   = 20
 
 	// HTTP REST
-	basePath = "http://" + host + "/v1"
+	baseURL = "http://" + host
 )
 
 func TestMain(m *testing.M) {

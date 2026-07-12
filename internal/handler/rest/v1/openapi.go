@@ -3,9 +3,6 @@ package v1
 import (
 	"context"
 	"net/http"
-	"reflect"
-
-	"clean-arch-template/internal/entity"
 
 	"github.com/danielgtaylor/huma/v2"
 )
@@ -13,7 +10,7 @@ import (
 type Handler interface {
 	ListUsers(ctx context.Context, req *ListUserRequest) (*ListUserResponse, error)
 	FindUserByID(ctx context.Context, req *FindUserRequest) (*UserResponse, error)
-	CreateUser(ctx context.Context, req *UserRequest) (*UserResponse, error)
+	CreateUser(ctx context.Context, req *CreateUserRequest) (*UserResponse, error)
 	UpdateUser(ctx context.Context, req *UpdateUserRequest) (*UserResponse, error)
 	DeleteUser(ctx context.Context, req *FindUserRequest) (*struct{}, error)
 	TransferMoney(ctx context.Context, req *TransferMoneyRequest) (*struct{}, error)
@@ -35,264 +32,75 @@ func SetupHumaConfig() huma.Config {
 	return openapiConfig
 }
 
-//nolint:funlen
+// SetupRoutes регистрирует операции. Схемы запросов/ответов и параметры Huma
+// генерирует из Go-типов (см. schemas.go) — руками их не описываем, чтобы
+// контракт не расходился с кодом. Errors добавляет коды ошибок в OpenAPI.
 func SetupRoutes(api huma.API, userHandler Handler) {
-	registry := huma.NewMapRegistry("#/components/schemas/", huma.DefaultSchemaNamer)
-	userListSchema := huma.SchemaFromType(registry, reflect.TypeOf(&ListUserResponse{}))
-
 	huma.Register(api, huma.Operation{
-		OperationID: "List users",
+		OperationID: "list-users",
 		Method:      http.MethodGet,
 		Path:        "/users/{page}/{size}",
 		Summary:     "list all users",
-		Description: "Get a list of all users with pagination.",
+		Description: "Get a page of users. Pages are 1-based.",
 		Tags:        []string{"Users"},
-		Parameters: []*huma.Param{
-			{
-				Name:     "page",
-				In:       "path",
-				Required: true,
-				Schema: &huma.Schema{
-					Type: "integer",
-				},
-				Description: "Number of users to return.",
-			},
-			{
-				Name:     "size",
-				In:       "path",
-				Required: true,
-				Schema: &huma.Schema{
-					Type: "integer",
-				},
-				Description: "Pagination offset.",
-			},
-		},
-		Responses: map[string]*huma.Response{
-			"200": {
-				Description: "Users list",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: userListSchema,
-					},
-				},
-			},
-		},
+		Errors:      []int{http.StatusBadRequest, http.StatusInternalServerError},
 	}, userHandler.ListUsers)
 
-	userbyIDSchema := huma.SchemaFromType(registry, reflect.TypeOf(&entity.User{}))
-
 	huma.Register(api, huma.Operation{
-		OperationID: "Get user by id",
+		OperationID: "get-user-by-id",
 		Method:      http.MethodGet,
 		Path:        "/user/{id}",
 		Summary:     "user by id",
 		Description: "Get a user by id.",
 		Tags:        []string{"Users"},
-		Responses: map[string]*huma.Response{
-			"200": {
-				Description: "IUserUC response",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: userbyIDSchema,
-					},
-				},
-			},
-			"400": {
-				Description: "Invalid request",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"message": {Type: "string"},
-								"field":   {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-			"404": {
-				Description: "IUserUC not found",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"error": {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-			"500": {
-				Description: "Internal server error",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"error": {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-		},
+		Errors:      []int{http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError},
 	}, userHandler.FindUserByID)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "Create user",
+		OperationID:   "create-user",
 		Method:        http.MethodPost,
 		Path:          "/user",
 		Summary:       "create new user",
 		Description:   "Create a new user record.",
 		Tags:          []string{"Users"},
 		DefaultStatus: http.StatusCreated,
-		Responses: map[string]*huma.Response{
-			"201": {
-				Description: "IUserUC created",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"body": {
-									Type: "object",
-									Properties: map[string]*huma.Schema{
-										"name": {Type: "string"},
-									},
-									Required: []string{"name"},
-								},
-							},
-							Required: []string{"body"},
-						},
-					},
-				},
-				Headers: map[string]*huma.Param{
-					"Location": {
-						Description: "URL of the newly created user",
-						Schema:      &huma.Schema{Type: "string"},
-						Required:    true,
-					},
-				},
-			},
-			"400": {
-				Description: "Invalid request",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"message": {Type: "string"},
-								"field":   {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-		},
+		Errors:        []int{http.StatusBadRequest, http.StatusInternalServerError},
 	}, userHandler.CreateUser)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "Update user",
+		OperationID: "update-user",
 		Method:      http.MethodPut,
 		Path:        "/user/{id}",
 		Summary:     "update user",
-		Description: "Update an existing user by ID.",
+		Description: "Update an existing user by ID. The ID from the path is authoritative; any ID in the body is ignored.",
 		Tags:        []string{"Users"},
-		Responses: map[string]*huma.Response{
-			"200": {
-				Description: "IUserUC updated",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"body": {
-									Type: "object",
-									Properties: map[string]*huma.Schema{
-										"name": {Type: "string"},
-									},
-									Required: []string{"name"},
-								},
-							},
-							Required: []string{"body"},
-						},
-					},
-				},
-			},
-			"400": {
-				Description: "Invalid request",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"message": {Type: "string"},
-								"field":   {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-			"404": {
-				Description: "IUserUC not found",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"error": {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-		},
+		Errors:      []int{http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError},
 	}, userHandler.UpdateUser)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "Delete user",
+		OperationID:   "delete-user",
 		Method:        http.MethodDelete,
 		Path:          "/user/{id}",
 		Summary:       "delete user",
 		Description:   "Delete a user by ID.",
 		Tags:          []string{"Users"},
 		DefaultStatus: http.StatusNoContent,
-		Responses: map[string]*huma.Response{
-			"204": {
-				Description: "IUserUC deleted",
-				Content:     map[string]*huma.MediaType{},
-			},
-			"404": {
-				Description: "IUserUC not found",
-				Content: map[string]*huma.MediaType{
-					"application/json": {
-						Schema: &huma.Schema{
-							Type: "object",
-							Properties: map[string]*huma.Schema{
-								"error": {Type: "string"},
-							},
-						},
-					},
-				},
-			},
-		},
+		Errors:        []int{http.StatusNotFound, http.StatusInternalServerError},
 	}, userHandler.DeleteUser)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "Transfer money",
+		OperationID:   "transfer-money",
 		Method:        http.MethodPost,
 		Path:          "/transfer",
 		Summary:       "transfer money",
-		Description:   "transfer money.",
+		Description:   "Transfer money between two accounts.",
 		Tags:          []string{"Users"},
 		DefaultStatus: http.StatusNoContent,
-		Responses: map[string]*huma.Response{
-			"200": {
-				Description: "IUserUC deleted",
-				Content:     map[string]*huma.MediaType{},
-			},
+		Errors: []int{
+			http.StatusBadRequest,
+			http.StatusNotFound,
+			http.StatusConflict,
+			http.StatusInternalServerError,
 		},
 	}, userHandler.TransferMoney)
 }

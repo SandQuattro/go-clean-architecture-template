@@ -8,7 +8,7 @@ PATH := $(PROJECT_BIN):$(PATH)
 VERSION=$(shell git describe --tags --always --dirty)
 .PHONY: build
 build: ## build with version
-	go build -ldflags "-X clean-arch-template/version.VERSION=$(VERSION)" ./cmd/...
+	go build -ldflags "-X clean-arch-template/version.Version=$(VERSION)" ./cmd/...
 
 .PHONY: run
 run: ## run the application
@@ -75,7 +75,7 @@ memprof: ## run memory profiling
 	( PPROF_TMPDIR=${PPROFDIR} go tool pprof -http :8081 http://127.0.0.1:9000/debug/pprof/heap )
 
 # ---------------------------------- LINTING ------------------------------------
-GOLANGCI_LINT_VERSION = v1.60.3
+GOLANGCI_LINT_VERSION = v2.12.2
 GOLANGCI_LINT = $(PROJECT_BIN)/golangci-lint
 
 .PHONY: .install-golangci-lint
