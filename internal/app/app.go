@@ -5,10 +5,10 @@ import (
 	"clean-arch-template/internal/usecase"
 	"clean-arch-template/internal/usecase/repository"
 	"clean-arch-template/pkg/database"
+	"clean-arch-template/pkg/logger"
 	"clean-arch-template/version"
 	"context"
 	"fmt"
-	"log/slog"
 
 	v1 "clean-arch-template/internal/handler/rest/v1"
 
@@ -21,7 +21,7 @@ import (
 	"github.com/gofiber/contrib/otelfiber/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/healthcheck"
-	"github.com/gofiber/fiber/v2/middleware/logger"
+	fiberlogger "github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
 	"github.com/gofiber/fiber/v2/middleware/recover"
@@ -31,25 +31,29 @@ type App struct {
 	server *fiber.App
 	pg     *database.Postgres
 	cfg    *config.Config
+	log    logger.Logger
 }
 
 // New подключает БД, применяет миграции, собирает middleware и DI.
 // Любая ошибка старта возвращается наверх — приложение не должно жить
 // с недоступной БД или битой схемой.
-func New(ctx context.Context, cfg *config.Config) (*App, error) {
-	version.PrintVersion(cfg)
+func New(ctx context.Context, cfg *config.Config, log logger.Logger) (*App, error) {
+	//nolint:contextcheck // стартовый лог до появления запроса: сигнатура фиксирована без ctx
+	version.PrintVersion(cfg, log)
 
+	//nolint:contextcheck // database.New не принимает ctx: пул создаётся один раз при старте
 	pg, err := database.New(cfg,
 		database.MaxPoolSize(cfg.PoolMax),
 		database.MinPoolSize(cfg.PoolMin),
 		database.ConnTimeout(cfg.ConnectTimeout),
 		database.HealthCheckPeriod(cfg.HealthCheckPeriod),
+		database.WithLogger(log),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("postgres connection failed: %w", err)
 	}
 
-	if err := applyMigrations(ctx, cfg.DB); err != nil {
+	if err := applyMigrations(ctx, cfg.DB, log); err != nil {
 		pg.Close()
 		return nil, fmt.Errorf("apply migrations failed: %w", err)
 	}
@@ -62,13 +66,16 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 		IdleTimeout:  cfg.IdleTimeout,
 	})
 
+	//nolint:contextcheck // per-request ctx внутри middleware намеренно независим от ctx старта приложения
 	setupMiddlewares(server, cfg, pg)
-	setupRoutes(server, pg)
+	setupRoutes(server, pg, log)
 
-	PrintSystemData()
-	PrintMemoryInfo()
+	//nolint:contextcheck // стартовые диагностические логи: сигнатура фиксирована без ctx
+	PrintSystemData(log)
+	//nolint:contextcheck // стартовые диагностические логи: сигнатура фиксирована без ctx
+	PrintMemoryInfo(log)
 
-	return &App{server: server, pg: pg, cfg: cfg}, nil
+	return &App{server: server, pg: pg, cfg: cfg, log: log}, nil
 }
 
 // Run блокируется до отмены контекста (сигнал) или ошибки сервера.
@@ -80,7 +87,7 @@ func (a *App) Run(ctx context.Context) error {
 		errCh <- a.server.Listen(":" + a.cfg.Port)
 	}()
 
-	slog.Info("Starting server on port: " + a.cfg.Port)
+	a.log.Info(ctx, "Starting server on port: "+a.cfg.Port)
 
 	select {
 	case err := <-errCh:
@@ -104,7 +111,7 @@ func (a *App) Run(ctx context.Context) error {
 		return fmt.Errorf("http server shutdown: %w", err)
 	}
 
-	slog.Info("Server stopped")
+	a.log.Info(ctx, "Server stopped")
 
 	return nil
 }
@@ -112,11 +119,11 @@ func (a *App) Run(ctx context.Context) error {
 func setupMiddlewares(server *fiber.App, cfg *config.Config, pg *database.Postgres) {
 	if cfg.Environment == "prod" {
 		// Структурированный access-лог, чтобы не ломать JSON-пайплайн логов.
-		server.Use(logger.New(logger.Config{
+		server.Use(fiberlogger.New(fiberlogger.Config{
 			Format: `{"time":"${time}","message":"access","method":"${method}","path":"${path}","status":${status},"latency":"${latency}","ip":"${ip}"}` + "\n",
 		}))
 	} else {
-		server.Use(logger.New())
+		server.Use(fiberlogger.New())
 	}
 
 	// open telemetry
@@ -159,7 +166,7 @@ func setupMiddlewares(server *fiber.App, cfg *config.Config, pg *database.Postgr
 	})
 }
 
-func setupRoutes(server *fiber.App, pg *database.Postgres) {
+func setupRoutes(server *fiber.App, pg *database.Postgres, log logger.Logger) {
 	humaConfig := v1.SetupHumaConfig()
 	api := humafiber.New(server, humaConfig)
 
@@ -167,6 +174,6 @@ func setupRoutes(server *fiber.App, pg *database.Postgres) {
 	userUseCase := usecase.NewUserUseCase(repository.NewUserRepository(pg.DBGetter, pg.Transactor))
 
 	// Initialize handlers
-	userHandler := v1.NewUserHandler(userUseCase)
+	userHandler := v1.NewUserHandler(userUseCase, log)
 	v1.SetupRoutes(api, userHandler)
 }

@@ -7,7 +7,6 @@ import (
 	"clean-arch-template/pkg/tracing"
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -21,21 +20,24 @@ func main() {
 	}
 
 	// Initialize the logger
-	logger.SetupLogger(cfg)
+	log, err := logger.New(cfg)
+	if err != nil {
+		panic(fmt.Sprintf("failed to init logger: %v", err))
+	}
 
-	if err := run(cfg); err != nil {
-		slog.Error("application terminated", slog.String("error", err.Error()))
+	if err := run(cfg, log); err != nil {
+		log.Error(context.Background(), "application terminated", "error", err.Error())
 		os.Exit(1)
 	}
 
-	slog.Info("Server gracefully stopped, bye, bye!")
+	log.Info(context.Background(), "Server gracefully stopped, bye, bye!")
 }
 
-func run(cfg *config.Config) error {
+func run(cfg *config.Config, log logger.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	tracerProvider, err := tracing.InitOpenTelemetryGRPC(ctx, cfg, slog.Default())
+	tracerProvider, err := tracing.InitOpenTelemetryGRPC(ctx, cfg, log)
 	if err != nil {
 		return err
 	}
@@ -47,11 +49,11 @@ func run(cfg *config.Config) error {
 		defer cancel()
 
 		if err := tracerProvider.Shutdown(shutdownCtx); err != nil {
-			slog.Error("failed to shutdown tracer provider", slog.String("error", err.Error()))
+			log.Error(context.Background(), "failed to shutdown tracer provider", "error", err.Error())
 		}
 	}()
 
-	application, err := app.New(ctx, cfg)
+	application, err := app.New(ctx, cfg, log)
 	if err != nil {
 		return err
 	}

@@ -2,15 +2,15 @@ package v1
 
 import (
 	"clean-arch-template/internal/entity"
+	"context"
 	"errors"
-	"log/slog"
 
 	"github.com/danielgtaylor/huma/v2"
 )
 
-// MapError маппит доменные ошибки в HTTP-ошибки. Неизвестные ошибки логируются
-// и уходят клиенту как generic 500 — текст внутренних ошибок не покидает сервис.
-func MapError(err error) error {
+// mapError маппит доменные ошибки в HTTP-ошибки. Неизвестные ошибки логируются
+// (с trace_id из ctx) и уходят клиенту как generic 500.
+func (uh *UserHandler) mapError(ctx context.Context, err error) error {
 	switch {
 	case errors.Is(err, entity.ErrUserNotFound),
 		errors.Is(err, entity.ErrSourceAccountNotFound),
@@ -24,7 +24,7 @@ func MapError(err error) error {
 	case errors.Is(err, entity.ErrInsufficientFunds):
 		return huma.Error409Conflict(err.Error())
 	default:
-		slog.Error("request failed", slog.String("error", err.Error()))
+		uh.log.Error(ctx, "request failed", "error", err.Error())
 		return huma.Error500InternalServerError("internal server error")
 	}
 }

@@ -1,11 +1,10 @@
 package logger
 
 import (
+	"clean-arch-template/config"
 	"context"
 	"io"
 	"log/slog"
-
-	"clean-arch-template/config"
 
 	"github.com/rs/zerolog"
 )
