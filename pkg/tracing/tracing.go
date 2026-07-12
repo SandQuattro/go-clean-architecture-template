@@ -3,8 +3,8 @@ package tracing
 
 import (
 	"clean-arch-template/config"
+	"clean-arch-template/pkg/logger"
 	"context"
-	"log/slog"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -17,14 +17,14 @@ import (
 const fraction = 0.6
 
 // InitOpenTelemetryGRPC oltp init.
-func InitOpenTelemetryGRPC(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*trace.TracerProvider, error) {
+func InitOpenTelemetryGRPC(ctx context.Context, cfg *config.Config, log logger.Logger) (*trace.TracerProvider, error) {
 	exporter, err := otlptracegrpc.New(
 		ctx,
 		otlptracegrpc.WithEndpoint(cfg.URL),
 		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {
-		logger.With("error", err.Error()).Error("tracing exporter could not be created, reason")
+		log.Error(ctx, "tracing exporter could not be created", "error", err.Error())
 		return nil, err
 	}
 

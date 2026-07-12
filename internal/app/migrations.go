@@ -2,10 +2,10 @@ package app
 
 import (
 	"clean-arch-template/config"
+	"clean-arch-template/pkg/logger"
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 	"os"
 	"time"
 
@@ -23,14 +23,14 @@ const (
 // возвращается наверх — сервис не должен принимать трафик на битой схеме.
 // Session-lock (pg advisory lock) защищает от параллельного применения
 // несколькими репликами. В продакшене предпочтителен отдельный Job/initContainer.
-func applyMigrations(ctx context.Context, cfg config.DB) error {
+func applyMigrations(ctx context.Context, cfg config.DB, log logger.Logger) error {
 	db, err := sql.Open("pgx", cfg.DSN())
 	if err != nil {
 		return fmt.Errorf("migrate: open db: %w", err)
 	}
 	defer func() {
 		if cerr := db.Close(); cerr != nil {
-			slog.Error("migrate: close db", slog.String("error", cerr.Error()))
+			log.Error(ctx, "migrate: close db", "error", cerr.Error())
 		}
 	}()
 
@@ -39,7 +39,7 @@ func applyMigrations(ctx context.Context, cfg config.DB) error {
 		if err == nil {
 			break
 		}
-		slog.Debug(fmt.Sprintf("migrate: postgres is trying to connect, attempts left: %d", attempts))
+		log.Debug(ctx, fmt.Sprintf("migrate: postgres is trying to connect, attempts left: %d", attempts))
 		time.Sleep(defaultTimeout)
 	}
 	if err != nil {
@@ -62,7 +62,7 @@ func applyMigrations(ctx context.Context, cfg config.DB) error {
 	}
 	defer func() {
 		if cerr := provider.Close(); cerr != nil {
-			slog.Error("migrate: close provider", slog.String("error", cerr.Error()))
+			log.Error(ctx, "migrate: close provider", "error", cerr.Error())
 		}
 	}()
 
@@ -72,11 +72,11 @@ func applyMigrations(ctx context.Context, cfg config.DB) error {
 	}
 
 	if len(results) == 0 {
-		slog.Info("Migrate: no change")
+		log.Info(ctx, "Migrate: no change")
 		return nil
 	}
 
-	slog.Info(fmt.Sprintf("Migrate: applied %d migrations", len(results)))
+	log.Info(ctx, fmt.Sprintf("Migrate: applied %d migrations", len(results)))
 
 	return nil
 }

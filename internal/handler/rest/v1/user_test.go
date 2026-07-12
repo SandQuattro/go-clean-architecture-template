@@ -3,9 +3,12 @@ package v1
 import (
 	"clean-arch-template/internal/entity"
 	"clean-arch-template/internal/usecase"
+	"clean-arch-template/pkg/logger/loggertest"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
@@ -22,7 +25,7 @@ var mockUsers = []entity.User{
 	},
 }
 
-func newTestAPI(t *testing.T) humatest.TestAPI {
+func newTestAPI(t *testing.T) (humatest.TestAPI, *loggertest.Fake) {
 	t.Helper()
 
 	_, api := humatest.New(t, SetupHumaConfig())
@@ -30,15 +33,16 @@ func newTestAPI(t *testing.T) humatest.TestAPI {
 	users := make([]entity.User, len(mockUsers))
 	copy(users, mockUsers)
 
+	fakeLog := &loggertest.Fake{}
 	mockRepo := &mockUserRepository{users: users}
 	userUC := usecase.NewUserUseCase(mockRepo)
-	SetupRoutes(api, NewUserHandler(userUC))
+	SetupRoutes(api, NewUserHandler(userUC, fakeLog))
 
-	return api
+	return api, fakeLog
 }
 
 func TestListUsersSuccess(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	resp := api.Get("/users/1/10")
 	if resp.Code != http.StatusOK {
@@ -65,7 +69,7 @@ func TestListUsersSuccess(t *testing.T) {
 }
 
 func TestListUsersPageError(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	// page минимум 1 — валидируется схемой Huma до хендлера, поэтому 422.
 	resp := api.Get("/users/0/10")
@@ -75,7 +79,7 @@ func TestListUsersPageError(t *testing.T) {
 }
 
 func TestListUsersSizeError(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	resp := api.Get("/users/1/-1")
 	if resp.Code != http.StatusUnprocessableEntity {
@@ -84,7 +88,7 @@ func TestListUsersSizeError(t *testing.T) {
 }
 
 func TestFindUserByIDSuccess(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	resp := api.Get("/user/1")
 	if resp.Code != http.StatusOK {
@@ -104,7 +108,7 @@ func TestFindUserByIDSuccess(t *testing.T) {
 }
 
 func TestFindUserByIDNotFound(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	resp := api.Get("/user/999")
 	if resp.Code != http.StatusNotFound {
@@ -113,7 +117,7 @@ func TestFindUserByIDNotFound(t *testing.T) {
 }
 
 func TestCreateUserSuccess(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	resp := api.Post("/user", map[string]any{
 		"name": "New Test User",
@@ -137,7 +141,7 @@ func TestCreateUserSuccess(t *testing.T) {
 }
 
 func TestCreateUserInvalidData(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	// Пустое имя отклоняется схемой (minLength=1) со статусом 422.
 	resp := api.Post("/user", map[string]any{
@@ -150,7 +154,7 @@ func TestCreateUserInvalidData(t *testing.T) {
 }
 
 func TestUpdateUserSuccess(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	resp := api.Put("/user/1", map[string]any{
 		"name": "Updated Test User",
@@ -172,7 +176,7 @@ func TestUpdateUserSuccess(t *testing.T) {
 }
 
 func TestUpdateUserBodyIDRejected(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	// ID принимается только из пути; лишние поля в теле отклоняются схемой.
 	resp := api.Put("/user/1", map[string]any{
@@ -186,7 +190,7 @@ func TestUpdateUserBodyIDRejected(t *testing.T) {
 }
 
 func TestUpdateUserNotFound(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	resp := api.Put("/user/999", map[string]any{
 		"name": "Non-existent User",
@@ -198,7 +202,7 @@ func TestUpdateUserNotFound(t *testing.T) {
 }
 
 func TestDeleteUserSuccess(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	resp := api.Delete("/user/1")
 	if resp.Code != http.StatusNoContent {
@@ -207,7 +211,7 @@ func TestDeleteUserSuccess(t *testing.T) {
 }
 
 func TestDeleteUserNotFound(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	resp := api.Delete("/user/999")
 	if resp.Code != http.StatusNotFound {
@@ -216,7 +220,7 @@ func TestDeleteUserNotFound(t *testing.T) {
 }
 
 func TestTransferMoneySuccess(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	resp := api.Post("/transfer", map[string]any{
 		"from_account_id": 1,
@@ -230,7 +234,7 @@ func TestTransferMoneySuccess(t *testing.T) {
 }
 
 func TestTransferMoneySameAccount(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	resp := api.Post("/transfer", map[string]any{
 		"from_account_id": 1,
@@ -244,7 +248,7 @@ func TestTransferMoneySameAccount(t *testing.T) {
 }
 
 func TestTransferMoneyDestinationNotFound(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	resp := api.Post("/transfer", map[string]any{
 		"from_account_id": 1,
@@ -258,7 +262,7 @@ func TestTransferMoneyDestinationNotFound(t *testing.T) {
 }
 
 func TestTransferMoneyInsufficientFunds(t *testing.T) {
-	api := newTestAPI(t)
+	api, _ := newTestAPI(t)
 
 	resp := api.Post("/transfer", map[string]any{
 		"from_account_id": 1,
@@ -268,6 +272,21 @@ func TestTransferMoneyInsufficientFunds(t *testing.T) {
 
 	if resp.Code != http.StatusConflict {
 		t.Fatalf("Expected status code %d for insufficient funds, got %d", http.StatusConflict, resp.Code)
+	}
+}
+
+func TestInternalErrorIsLoggedAndMasked(t *testing.T) {
+	api, fakeLog := newTestAPI(t)
+
+	resp := api.Get("/users/1/13") // sentinel-лимит: mock отдаёт internal error
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected 500, got %d", resp.Code)
+	}
+	if !strings.Contains(resp.Body.String(), "internal server error") || strings.Contains(resp.Body.String(), "boom") {
+		t.Fatalf("Internal error text must be masked, got: %s", resp.Body.String())
+	}
+	if len(fakeLog.Entries) != 1 || fakeLog.Entries[0].Level != "ERROR" {
+		t.Fatalf("Expected exactly one ERROR log entry, got %+v", fakeLog.Entries)
 	}
 }
 
@@ -284,7 +303,10 @@ func (m *mockUserRepository) GetAllUsersWithOrders(_ context.Context, _, _ int) 
 	return nil, nil
 }
 
-func (m *mockUserRepository) GetAllUsers(_ context.Context, _, _ int) ([]entity.User, error) {
+func (m *mockUserRepository) GetAllUsers(_ context.Context, _, limit int) ([]entity.User, error) {
+	if limit == 13 {
+		return nil, errors.New("boom")
+	}
 	return m.users, nil
 }
 

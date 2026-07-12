@@ -1,5 +1,7 @@
 package database
 
+import "clean-arch-template/pkg/logger"
+
 // Option -.
 type Option func(*Postgres)
 
@@ -35,5 +37,12 @@ func ConnTimeout(timeout int) Option {
 func HealthCheckPeriod(period int) Option {
 	return func(c *Postgres) {
 		c.healthCheckPeriod = period
+	}
+}
+
+// WithLogger -.
+func WithLogger(l logger.Logger) Option {
+	return func(c *Postgres) {
+		c.logger = l
 	}
 }

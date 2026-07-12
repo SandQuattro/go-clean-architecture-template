@@ -1,13 +1,12 @@
 package logger
 
 import (
+	"clean-arch-template/config"
 	"context"
 	"io"
 	"log/slog"
 	"runtime"
 	"time"
-
-	"clean-arch-template/config"
 )
 
 type slogLogger struct {

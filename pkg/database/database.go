@@ -2,9 +2,9 @@ package database
 
 import (
 	"clean-arch-template/config"
+	"clean-arch-template/pkg/logger"
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	tx "github.com/Thiht/transactor/pgx"
@@ -28,6 +28,8 @@ type (
 		connTimeout       int
 		healthCheckPeriod int
 
+		logger logger.Logger
+
 		Pool       *pgxpool.Pool
 		Transactor *tx.Transactor
 		DBGetter   tx.DBGetter
@@ -42,6 +44,7 @@ func New(cfg *config.Config, opts ...Option) (*Postgres, error) {
 		connAttempts:      _defaultConnAttempts,
 		connTimeout:       _defaultConnTimeout,
 		healthCheckPeriod: _defaultHealthCheckPeriod,
+		logger:            logger.Nop(),
 	}
 
 	// Custom options
@@ -63,7 +66,7 @@ func New(cfg *config.Config, opts ...Option) (*Postgres, error) {
 			break
 		}
 
-		slog.Debug(fmt.Sprintf("Postgres is trying to connect to %s, attempts left: %d", cfg.DBHost, pg.connAttempts))
+		pg.logger.Debug(context.Background(), fmt.Sprintf("Postgres is trying to connect to %s, attempts left: %d", cfg.DBHost, pg.connAttempts))
 
 		time.Sleep(time.Duration(pg.connTimeout) * time.Second)
 

@@ -2,6 +2,7 @@ package v1
 
 import (
 	"clean-arch-template/internal/usecase"
+	"clean-arch-template/pkg/logger"
 	"context"
 
 	"go.opentelemetry.io/otel"
@@ -13,10 +14,11 @@ const tracerName = "user handler"
 
 type UserHandler struct {
 	userUC UserUseCase
+	log    logger.Logger
 }
 
-func NewUserHandler(uc UserUseCase) *UserHandler {
-	return &UserHandler{userUC: uc}
+func NewUserHandler(uc UserUseCase, log logger.Logger) *UserHandler {
+	return &UserHandler{userUC: uc, log: log}
 }
 
 func (uh *UserHandler) ListUsers(ctx context.Context, req *ListUserRequest) (*ListUserResponse, error) {
@@ -32,7 +34,7 @@ func (uh *UserHandler) ListUsers(ctx context.Context, req *ListUserRequest) (*Li
 
 	users, err := uh.userUC.FindAllUsers(ctx, cmd)
 	if err != nil {
-		return nil, MapError(err)
+		return nil, uh.mapError(ctx, err)
 	}
 
 	return ToUserListOutputFromEntity(users), nil
@@ -46,7 +48,7 @@ func (uh *UserHandler) FindUserByID(ctx context.Context, req *FindUserRequest) (
 
 	user, err := uh.userUC.FindUserByID(ctx, cmd)
 	if err != nil {
-		return nil, MapError(err)
+		return nil, uh.mapError(ctx, err)
 	}
 
 	return ToUserOutputFromEntity(user), nil
@@ -61,7 +63,7 @@ func (uh *UserHandler) CreateUser(ctx context.Context, req *CreateUserRequest) (
 
 	user, err := uh.userUC.CreateUser(ctx, cmd)
 	if err != nil {
-		return nil, MapError(err)
+		return nil, uh.mapError(ctx, err)
 	}
 
 	return ToUserOutputFromEntity(user), nil
@@ -79,7 +81,7 @@ func (uh *UserHandler) UpdateUser(ctx context.Context, req *UpdateUserRequest) (
 
 	user, err := uh.userUC.UpdateUser(ctx, cmd)
 	if err != nil {
-		return nil, MapError(err)
+		return nil, uh.mapError(ctx, err)
 	}
 
 	return ToUserOutputFromEntity(user), nil
@@ -92,7 +94,7 @@ func (uh *UserHandler) DeleteUser(ctx context.Context, req *FindUserRequest) (*s
 	cmd := usecase.DeleteUserByIDCommand{ID: req.ID}
 
 	if err := uh.userUC.DeleteUser(ctx, cmd); err != nil {
-		return nil, MapError(err)
+		return nil, uh.mapError(ctx, err)
 	}
 
 	return &struct{}{}, nil
@@ -105,7 +107,7 @@ func (uh *UserHandler) TransferMoney(ctx context.Context, req *TransferMoneyRequ
 	cmd := usecase.TransferMoneyCommand{Transfer: ToTransferEntity(req.Body)}
 
 	if err := uh.userUC.TransferMoney(ctx, cmd); err != nil {
-		return nil, MapError(err)
+		return nil, uh.mapError(ctx, err)
 	}
 
 	return &struct{}{}, nil
