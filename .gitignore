@@ -2,8 +2,10 @@
 .vscode
 .DS_Store
 pg_volume*
-grafana_volume*
-prometheus_volume
+grafana_volume/*
+!grafana_volume/datasources.yaml
+prometheus_volume/*
+!prometheus_volume/prometheus.yml
 coverage.out
 .env
 

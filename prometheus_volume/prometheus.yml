@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: clean-arch-template
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["app:8000"]
+  - job_name: clean-arch-template-fiber
+    metrics_path: /fiber
+    static_configs:
+      - targets: ["app:8000"]
