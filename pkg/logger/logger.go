@@ -1,10 +1,23 @@
+// Package logger — общий интерфейс логгера; реализации (slog, zerolog)
+// живут в этом же пакете: вынос в подпакеты создал бы цикл импортов
+// интерфейс ↔ фабрика ↔ реализация (метод With возвращает Logger).
 package logger
 
 import (
 	"clean-arch-template/config"
+	"context"
 	"log/slog"
 	"os"
 )
+
+type Logger interface {
+	Debug(ctx context.Context, msg string, args ...any)
+	Info(ctx context.Context, msg string, args ...any)
+	Warn(ctx context.Context, msg string, args ...any)
+	Error(ctx context.Context, msg string, args ...any)
+	// With возвращает логгер с добавленными атрибутами (args — пары key/value).
+	With(args ...any) Logger
+}
 
 // SetupLogger настраивает глобальный slog: уровень берётся из конфига
 // (LOG_LEVEL), DEBUG=true принудительно опускает его до Debug.
