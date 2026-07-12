@@ -47,6 +47,7 @@ type (
 		DBPassword        string `json:"password" toml:"password" env:"DB_PASSWORD" env-required:"true"`
 		DBName            string `json:"name"     toml:"name"     env:"DB_NAME"`
 		SSLMode           string `json:"sslmode"  toml:"sslmode"  env:"DB_SSLMODE" env-default:"disable"`
+		MigrationsDir     string `json:"migrations_dir" toml:"migrations_dir" env:"MIGRATIONS_DIR" env-default:"migrations"`
 		PoolMax           int32  `json:"pool_max" toml:"pool_max" env:"PG_POOL_MAX" env-required:"true"`
 		PoolMin           int32  `json:"pool_min" toml:"pool_min" env:"PG_POOL_MIN" env-default:"1"`
 		ConnectTimeout    int    `json:"connect_timeout" toml:"connect_timeout" env:"PG_POOL_CONN_TIMEOUT" env-default:"5"`
