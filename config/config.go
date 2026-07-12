@@ -55,7 +55,8 @@ type (
 	}
 
 	Log struct {
-		Level slog.Level `json:"level" toml:"level" env:"LOG_LEVEL"`
+		Level   slog.Level `json:"level"   toml:"level"   env:"LOG_LEVEL"`
+		Backend string     `json:"backend" toml:"backend" env:"LOG_BACKEND" env-default:"slog"`
 	}
 
 	Tracing struct {

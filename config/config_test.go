@@ -41,6 +41,7 @@ func TestLoadConfig(t *testing.T) {
 	assert.Equal(t, slog.LevelInfo, cfg.Log.Level)
 	assert.Equal(t, "http://localhost:14268/api/traces", cfg.Tracing.URL)
 	assert.Equal(t, "migrations", cfg.DB.MigrationsDir)
+	assert.Equal(t, "slog", cfg.Log.Backend)
 }
 
 func TestLoadConfigMissingRequiredField(t *testing.T) {

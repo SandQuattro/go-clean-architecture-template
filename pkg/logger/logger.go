@@ -6,6 +6,7 @@ package logger
 import (
 	"clean-arch-template/config"
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 )
@@ -18,6 +19,34 @@ type Logger interface {
 	// With возвращает логгер с добавленными атрибутами (args — пары key/value).
 	With(args ...any) Logger
 }
+
+const (
+	BackendSlog    = "slog"
+	BackendZerolog = "zerolog"
+)
+
+// New — фабрика логгера по cfg.Log.Backend (env LOG_BACKEND).
+func New(cfg *config.Config) (Logger, error) {
+	switch cfg.Backend {
+	case BackendSlog, "":
+		return newSlogLogger(cfg, os.Stdout), nil
+	case BackendZerolog:
+		return newZeroLogger(cfg, os.Stdout), nil
+	default:
+		return nil, fmt.Errorf("unknown log backend %q (supported: %s, %s)", cfg.Backend, BackendSlog, BackendZerolog)
+	}
+}
+
+// Nop — логгер-заглушка для необязательных зависимостей.
+func Nop() Logger { return nopLogger{} }
+
+type nopLogger struct{}
+
+func (nopLogger) Debug(context.Context, string, ...any) {}
+func (nopLogger) Info(context.Context, string, ...any)  {}
+func (nopLogger) Warn(context.Context, string, ...any)  {}
+func (nopLogger) Error(context.Context, string, ...any) {}
+func (nopLogger) With(...any) Logger                    { return nopLogger{} }
 
 // SetupLogger настраивает глобальный slog: уровень берётся из конфига
 // (LOG_LEVEL), DEBUG=true принудительно опускает его до Debug.
