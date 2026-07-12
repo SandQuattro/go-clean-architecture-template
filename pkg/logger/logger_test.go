@@ -159,3 +159,33 @@ func TestZeroLoggerTraceCorrelation(t *testing.T) {
 	assert.Equal(t, "01000000000000000000000000000000", entry["trace_id"])
 	assert.Equal(t, "0200000000000000", entry["span_id"])
 }
+
+func TestNewFactory(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		backend string
+		wantErr bool
+	}{
+		{backend: "slog"},
+		{backend: "zerolog"},
+		{backend: "syslog", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.backend, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := prodConfig()
+			cfg.Log.Backend = tc.backend
+
+			log, err := New(cfg)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, log)
+		})
+	}
+}
