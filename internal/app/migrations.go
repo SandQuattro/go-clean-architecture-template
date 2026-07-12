@@ -2,13 +2,16 @@ package app
 
 import (
 	"clean-arch-template/config"
-	"errors"
+	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 )
 
 const (
@@ -16,53 +19,64 @@ const (
 	defaultTimeout  = time.Second
 )
 
-// applyMigrations применяет миграции при старте. Любая ошибка (включая dirty
-// state) возвращается наверх — сервис не должен принимать трафик на битой схеме.
-// В продакшене с несколькими репликами предпочтителен отдельный Job/initContainer.
-func applyMigrations(cfg config.DB) error {
-	var (
-		attempts = defaultAttempts
-		err      error
-		m        *migrate.Migrate
-	)
+// applyMigrations применяет миграции при старте через goose. Любая ошибка
+// возвращается наверх — сервис не должен принимать трафик на битой схеме.
+// Session-lock (pg advisory lock) защищает от параллельного применения
+// несколькими репликами. В продакшене предпочтителен отдельный Job/initContainer.
+func applyMigrations(ctx context.Context, cfg config.DB) error {
+	db, err := sql.Open("pgx", cfg.DSN())
+	if err != nil {
+		return fmt.Errorf("migrate: open db: %w", err)
+	}
+	defer func() {
+		if cerr := db.Close(); cerr != nil {
+			slog.Error("migrate: close db", slog.String("error", cerr.Error()))
+		}
+	}()
 
-	for attempts > 0 {
-		m, err = migrate.New("file://migrations", cfg.DSN())
+	for attempts := defaultAttempts; attempts > 0; attempts-- {
+		err = db.PingContext(ctx)
 		if err == nil {
 			break
 		}
-
 		slog.Debug(fmt.Sprintf("migrate: postgres is trying to connect, attempts left: %d", attempts))
 		time.Sleep(defaultTimeout)
-
-		attempts--
 	}
-
 	if err != nil {
 		return fmt.Errorf("migrate: postgres connect: %w", err)
 	}
 
+	sessionLocker, err := lock.NewPostgresSessionLocker()
+	if err != nil {
+		return fmt.Errorf("migrate: session locker: %w", err)
+	}
+
+	provider, err := goose.NewProvider(
+		goose.DialectPostgres,
+		db,
+		os.DirFS(cfg.MigrationsDir),
+		goose.WithSessionLocker(sessionLocker),
+	)
+	if err != nil {
+		return fmt.Errorf("migrate: provider: %w", err)
+	}
 	defer func() {
-		srcErr, dbErr := m.Close()
-		if srcErr != nil {
-			slog.Error(fmt.Sprintf("migrate: close source: %s", srcErr))
-		}
-		if dbErr != nil {
-			slog.Error(fmt.Sprintf("migrate: close db conn: %s", dbErr))
+		if cerr := provider.Close(); cerr != nil {
+			slog.Error("migrate: close provider", slog.String("error", cerr.Error()))
 		}
 	}()
 
-	err = m.Up()
-
-	switch {
-	case errors.Is(err, migrate.ErrNoChange):
-		slog.Info("Migrate: no change")
-		return nil
-	case err != nil:
+	results, err := provider.Up(ctx)
+	if err != nil {
 		return fmt.Errorf("migrate: up: %w", err)
 	}
 
-	slog.Info("Migrate: up success")
+	if len(results) == 0 {
+		slog.Info("Migrate: no change")
+		return nil
+	}
+
+	slog.Info(fmt.Sprintf("Migrate: applied %d migrations", len(results)))
 
 	return nil
 }
