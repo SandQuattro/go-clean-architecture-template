@@ -60,5 +60,6 @@
 ## Baseline существующей БД (переход с golang-migrate)
 Шаблон предполагает свежую БД. Если схема уже создана golang-migrate:
 1. Убедитесь, что схема соответствует последней миграции.
-2. Для каждой применённой версии миграции вставьте в `goose_db_version` строку: `INSERT INTO goose_db_version (version_id, is_applied) VALUES (<version>, true);`
-3. Таблица `schema_migrations` от golang-migrate больше не используется и может быть удалена.
+2. Создайте таблицу версий goose, выполнив любую goose-команду против этой БД, например `make migrations-status` (упадёт со списком pending — это нормально, таблица `goose_db_version` при этом будет создана).
+3. Пометьте каждую версию применённой: `INSERT INTO goose_db_version (version_id, is_applied) VALUES (<version>, true);` — для всех версий из `migrations/` (например, 20230101000000). Пока это не сделано, НЕ запускайте приложение: повторное применение миграции `20260712000001` умножит балансы на 100.
+4. Таблица `schema_migrations` от golang-migrate больше не используется и может быть удалена.
