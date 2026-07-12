@@ -110,3 +110,52 @@ func TestSlogLoggerSourcePointsAtCaller(t *testing.T) {
 	require.Contains(t, buf.String(), "logger_test.go", "source должен указывать на вызывающий файл, а не на slogx.go")
 	require.NotContains(t, buf.String(), "slogx.go")
 }
+
+func TestZeroLoggerWritesJSONInProd(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	log := newZeroLogger(prodConfig(), &buf)
+
+	log.Info(context.Background(), "hello", "user_id", 42)
+
+	entry := lastJSONLine(t, &buf)
+	assert.Equal(t, "hello", entry["message"])
+	assert.Equal(t, float64(42), entry["user_id"])
+}
+
+func TestZeroLoggerLevelFiltering(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	log := newZeroLogger(prodConfig(), &buf)
+
+	log.Debug(context.Background(), "invisible")
+
+	assert.Empty(t, buf.Bytes())
+}
+
+func TestZeroLoggerWith(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	log := newZeroLogger(prodConfig(), &buf).With("component", "test")
+
+	log.Info(context.Background(), "hello")
+
+	entry := lastJSONLine(t, &buf)
+	assert.Equal(t, "test", entry["component"])
+}
+
+func TestZeroLoggerTraceCorrelation(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	log := newZeroLogger(prodConfig(), &buf)
+
+	log.Info(ctxWithSpan(t), "traced")
+
+	entry := lastJSONLine(t, &buf)
+	assert.Equal(t, "01000000000000000000000000000000", entry["trace_id"])
+	assert.Equal(t, "0200000000000000", entry["span_id"])
+}
