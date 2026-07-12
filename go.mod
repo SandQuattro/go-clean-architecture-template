@@ -14,6 +14,7 @@ require (
 	github.com/pashagolub/pgxmock/v4 v4.3.0
 	github.com/pressly/goose/v3 v3.27.2
 	github.com/prometheus/client_golang v1.23.2
+	github.com/rs/zerolog v1.35.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0
