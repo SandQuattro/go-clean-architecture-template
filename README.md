@@ -18,7 +18,7 @@
 ## Template Technologies
 - huma service openapi 3.1 runtime operations generator
 - high performance fiber http server / router / middlewares
-- Golang: 1.22+
+- Golang: 1.26+
 - fiber middlewares: http access logger, panic recovery, resource monitor, pprof profiler, health check
 - Database: Postgres, clean SQL(PGX либа), самый быстрый вариант
 - Migrations: golang-migrate
