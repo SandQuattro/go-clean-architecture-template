@@ -12,7 +12,7 @@ services:
     expose:
       - "5433" # Publishes 5433 to other containers but NOT to host machine
     ports:
-      - "5433:5432"
+      - "5434:5432" # 5434, чтобы не конфликтовать с другими локальными postgres на 5433
     healthcheck:
       test: pg_isready -U $$POSTGRES_USER -d $${POSTGRES_DB}
       interval: 10s
