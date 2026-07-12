@@ -93,25 +93,26 @@ lint-fast: .install-golangci-lint ## run fast linter
 	$(GOLANGCI_LINT) run ./... --fast --config=./.golangci.yml
 
 # ---------------------------------- MIGRATIONS ---------------------------------
-MIGRATE_VERSION = 4.17.1
-MIGRATE = $(PROJECT_BIN)/migrate
+GOOSE_VERSION = v3.27.2
+GOOSE = $(PROJECT_BIN)/goose
 
-.PHONY: .install-migrate
-.install-migrate:
-	@if [ ! -f $(MIGRATE) ]; then \
-		git clone https://github.com/golang-migrate/migrate.git ./.tmp;  \
-		cd ./.tmp/cmd/migrate; \
-		git checkout v$(MIGRATE_VERSION); \
-		go build; \
-		mv migrate* $(PROJECT_BIN); \
-		cd $(PROJECT_DIR); \
-		sleep 1; \
-		rm -rf .tmp; \
-	fi
+DB_USER ?= postgres
+DB_PASSWORD ?= admin
+DB_HOST ?= localhost
+DB_PORT ?= 5434
+DB_NAME ?= demo
+
+.PHONY: .install-goose
+.install-goose:
+	[ -f $(GOOSE) ] || GOBIN=$(PROJECT_BIN) go install github.com/pressly/goose/v3/cmd/goose@$(GOOSE_VERSION)
 
 .PHONY: new-migration
-new-migration: .install-migrate ## run migrations
-	$(MIGRATE) create -ext sql -dir ./migrations $(name)
+new-migration: .install-goose ## create new sql migration: make new-migration name=add_something
+	$(GOOSE) -dir ./migrations create $(name) sql
+
+.PHONY: migrations-status
+migrations-status: .install-goose ## show migrations status against local db
+	$(GOOSE) -dir ./migrations postgres "postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable" status
 
 # ----------------------------------- KUBERNETES -----------------------------------
 .PHONY: k8s-deploy

@@ -6,57 +6,59 @@
 - Независимость от UI: пользовательский интерфейс можно легко изменить без изменения остальной системы.
 - Независимость от баз данных: бизнес-правила не связаны с типом хранения данных.
 
-## Цели и преимущества использования “Чистой архитектуры” в разработке программного обеспечения
-Главная цель “Чистой архитектуры” — создание такого программного обеспечения, которое легко поддается изменениям, расширению функциональности и поддержке.
+## Цели и преимущества использования “Чистой архитектуры”
+Главная цель “Чистой архитектуры” — создание программного обеспечения, которое легко поддаётся изменениям, расширению функциональности и поддержке.
 
-## Основные компоненты “Чистой архитектуры”
-- Сущности (Entities): представляют объекты предметной области с высокоуровневыми правилами бизнеса.
-- Use Cases: содержат специфичную для приложения бизнес-логику.
-- Контроллеры и презентеры: служат связующим звеном между использованием use case и пользовательским интерфейсом или другими методами доставки информации (например, API).
-- Внешние интерфейсы (Interface Adapters): преобразуют данные к формату удобному для Use Cases или сущностей.
+## Основные компоненты
+- Сущности (Entities): объекты предметной области, высокоуровневые бизнес-правила и доменные сентинел-ошибки (`internal/entity`).
+- Use Cases: специфичная для приложения бизнес-логика и валидация (`internal/usecase`).
+- Контроллеры и презентеры: Huma-хендлеры с транспортными DTO — entity не протекает в публичный контракт (`internal/handler/rest/v1`).
+- Внешние интерфейсы (Interface Adapters): репозитории на pgx, преобразование данных для use case (`internal/usecase/repository`).
 
 ## Template Technologies
-- huma service openapi 3.1 runtime operations generator
+- huma service openapi 3.1 runtime operations generator (закреплён на v2.37.0 — последняя версия с адаптером под fiber v2; v2.38+ требует fiber v3, экосистема которого ещё не готова)
 - high performance fiber http server / router / middlewares
 - Golang: 1.26+
-- fiber middlewares: http access logger, panic recovery, resource monitor, pprof profiler, health check
-- Database: Postgres, clean SQL(PGX либа), самый быстрый вариант
-- Migrations: golang-migrate
-- Config: cleanenv
-- Observability: Logging slog (stdlib) json(production), Metrics, OpenTelemetry tracing, стандартный observability стек
+- fiber middlewares: structured http access logger, panic recovery, resource monitor, pprof profiler, health check (readiness пингует пул БД), request timeout
+- Database: Postgres, clean SQL (PGX v5), транзакции через Thiht/transactor, деньги в int64 (минимальные единицы валюты)
+- Migrations: goose (pressly/goose v3), применяются автоматически при старте под pg advisory lock; ошибка миграции валит старт
+- Config: cleanenv (файл + env поверх, `CONFIG_PATH` для явного пути; таймауты — только env)
+- Observability: slog (JSON в prod, уровень из `LOG_LEVEL`), Prometheus + Grafana (конфиги в репозитории), OpenTelemetry tracing → Jaeger
+- Lint: golangci-lint v2 (`make lint`), gofumpt как форматтер
 
-##  Запуск приложения локально
-DEBUG=true DB_PASSWORD=admin ENV_NAME=dev make cleandc
+## Запуск приложения локально
+`DEBUG=true DB_PASSWORD=admin ENV_NAME=dev make cleandc`
+
+Поднимает весь стек: app + Postgres (хост-порт **5434**) + Jaeger + Prometheus + Grafana + интеграционные тесты.
 
 ## Документация API
 [OpenAPI3.1](http://127.0.0.1:9000/docs)
 
-## Мониторинг потребления ресурсов
-- потребление cpu
-- текущее потребление памяти процессом / ОС / общее количество памяти OC
-- среднее время ответа на запрос
-- количество открытых соединений
-
-[МОНИТОР](http://127.0.0.1:9000/monitor)
-
-## Встроенный профайлер, с поддержкой профилирования CPU, памяти, горутин и блокировок
-[PROFILER](http://127.0.0.1:9000/debug/pprof/)
+## Наблюдаемость
+- [МОНИТОР](http://127.0.0.1:9000/monitor) — cpu, память, время ответа, соединения (dev-only)
+- [PROFILER](http://127.0.0.1:9000/debug/pprof/) — CPU, память, горутины, блокировки (dev-only)
+- [Jaeger UI](http://localhost:16686) — трейсы
+- [Prometheus](http://localhost:9090), [Grafana](http://localhost:3000) (admin/admin)
 
 ## Нагрузочное тестирование
-`
-Запускаем разгон до N пользователей, держим N пользователей M секунд, плавно опускаем нагрузку до 0
-k6 run load-test/load_test.js
-`
+`k6 run load-test/load_test.js`
 
 ## TODO
-- [x] Добавить генерацию моков для интерфейсов, чтобы затем использовать их в интеграционных тестах
-- [x] Добавить tracing на обработчики
+- [x] Добавить генерацию моков для интерфейсов
+- [x] Добавить tracing на обработчики (span-контекст пробрасывается вниз)
 - [x] Добавить unit тесты
 - [x] Добавить fuzzing тесты
-- [x] Добавить integration тесты
+- [x] Добавить integration тесты (CRUD + transfer)
 - [x] Добавить prometheus и grafana в docker-compose
 - [x] Добавить unit тесты на слой handler
-- [ ] Добавить transactor
-- [ ] Добавить еще интеграционных тестов
+- [x] Добавить transactor
+- [x] Добавить еще интеграционных тестов
 - [ ] Привести все тесты в порядок, добавить покрытие > 80%
-- [ ] nnn
+- [x] Перевести миграции на goose
+- [ ] Общий интерфейс логгера (slog / zerolog за одной абстракцией)
+
+## Baseline существующей БД (переход с golang-migrate)
+Шаблон предполагает свежую БД. Если схема уже создана golang-migrate:
+1. Убедитесь, что схема соответствует последней миграции.
+2. Для каждой применённой версии миграции вставьте в `goose_db_version` строку: `INSERT INTO goose_db_version (version_id, is_applied) VALUES (<version>, true);`
+3. Таблица `schema_migrations` от golang-migrate больше не используется и может быть удалена.

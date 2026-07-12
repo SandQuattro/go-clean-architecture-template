@@ -29,8 +29,9 @@ Note: huma is pinned to v2.37.0 — it is the last version whose `humafiber` ada
 
 ### Code generation & migrations
 - `go generate ./...` — regenerate gomock mocks; each `interfaces.go` has a `//go:generate mockgen` directive producing `mocks.go` in the same package (mockgen from `go.uber.org/mock`)
-- `make new-migration name=<migration_name>` — create an SQL migration pair in `migrations/`
-- Migrations are applied automatically at app startup (`internal/app/migrations.go`); a failed migration now aborts startup. For multi-replica production deployments prefer a separate Job/initContainer
+- `make new-migration name=<migration_name>` — create a goose SQL migration in `migrations/` (single file with `-- +goose Up` / `-- +goose Down` sections)
+- `make migrations-status` — show migration status against the local docker-compose Postgres (host port 5434)
+- Migrations are applied automatically at app startup by the goose provider (`internal/app/migrations.go`) under a pg advisory session-lock; a failed migration aborts startup. For multi-replica production deployments prefer a separate Job/initContainer
 
 ## Architecture
 
