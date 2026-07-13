@@ -1,6 +1,7 @@
 .idea
 .vscode
 .DS_Store
+docs/superpowers
 pg_volume*
 grafana_volume/*
 !grafana_volume/datasources.yaml
@@ -10,3 +11,4 @@ coverage.out
 .env
 
 bin/
+.superpowers/
