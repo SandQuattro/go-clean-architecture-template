@@ -72,6 +72,12 @@ func (z *zeroLogger) With(args ...any) Logger {
 }
 
 func (z *zeroLogger) log(ctx context.Context, e *zerolog.Event, msg string, args []any) {
+	// zerolog возвращает nil-событие для выключенного уровня: выходим сразу,
+	// не тратя горячий путь на разбор пар и извлечение спана из ctx.
+	if e == nil {
+		return
+	}
+
 	for k, v := range pairs(args) {
 		e = e.Interface(k, v)
 	}
@@ -81,21 +87,29 @@ func (z *zeroLogger) log(ctx context.Context, e *zerolog.Event, msg string, args
 	e.Msg(msg)
 }
 
-// pairs итерирует slog-стиль key/value; непарный хвост — под ключом "!BADKEY".
+// pairs итерирует args в slog-семантике key/value: нестроковый элемент на
+// месте ключа уходит значением под "!BADKEY" со сдвигом на один (как в
+// log/slog), непарная строка в хвосте — тоже под "!BADKEY". slog.Attr не
+// поддерживается: контракт Logger — плоские пары key/value.
 func pairs(args []any) func(yield func(string, any) bool) {
 	return func(yield func(string, any) bool) {
-		for i := 0; i < len(args); i += 2 {
-			if i+1 >= len(args) {
-				yield("!BADKEY", args[i])
-				return
-			}
+		for i := 0; i < len(args); {
 			key, ok := args[i].(string)
 			if !ok {
-				key = "!BADKEY"
+				if !yield("!BADKEY", args[i]) {
+					return
+				}
+				i++
+				continue
+			}
+			if i+1 >= len(args) {
+				yield("!BADKEY", key)
+				return
 			}
 			if !yield(key, args[i+1]) {
 				return
 			}
+			i += 2
 		}
 	}
 }

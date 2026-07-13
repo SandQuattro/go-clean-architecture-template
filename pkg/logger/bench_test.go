@@ -1,11 +1,12 @@
 package logger
 
 import (
+	"clean-arch-template/config"
 	"context"
 	"io"
 	"testing"
 
-	"clean-arch-template/config"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func benchConfig() *config.Config {
@@ -29,4 +30,22 @@ func BenchmarkSlogInfo(b *testing.B) {
 
 func BenchmarkZerologInfo(b *testing.B) {
 	benchmarkInfo(b, newZeroLogger(benchConfig(), io.Discard), context.Background())
+}
+
+func benchCtxWithSpan() context.Context {
+	spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    trace.TraceID{0x01},
+		SpanID:     trace.SpanID{0x02},
+		TraceFlags: trace.FlagsSampled,
+	})
+
+	return trace.ContextWithSpanContext(context.Background(), spanCtx)
+}
+
+func BenchmarkSlogInfoWithSpan(b *testing.B) {
+	benchmarkInfo(b, newSlogLogger(benchConfig(), io.Discard), benchCtxWithSpan())
+}
+
+func BenchmarkZerologInfoWithSpan(b *testing.B) {
+	benchmarkInfo(b, newZeroLogger(benchConfig(), io.Discard), benchCtxWithSpan())
 }

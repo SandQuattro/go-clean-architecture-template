@@ -2,11 +2,10 @@ package logger
 
 import (
 	"bytes"
+	"clean-arch-template/config"
 	"context"
 	"encoding/json"
 	"testing"
-
-	"clean-arch-template/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -188,4 +187,60 @@ func TestNewFactory(t *testing.T) {
 			require.NotNil(t, log)
 		})
 	}
+}
+
+func TestPairs(t *testing.T) {
+	t.Parallel()
+
+	collect := func(args []any) [][2]any {
+		var got [][2]any
+		for k, v := range pairs(args) {
+			got = append(got, [2]any{k, v})
+		}
+		return got
+	}
+
+	tests := []struct {
+		name string
+		args []any
+		want [][2]any
+	}{
+		{name: "empty args yield nothing", args: nil, want: nil},
+		{name: "even pairs", args: []any{"a", 1, "b", 2}, want: [][2]any{{"a", 1}, {"b", 2}}},
+		{name: "unpaired string tail goes under BADKEY", args: []any{"a", 1, "tail"}, want: [][2]any{{"a", 1}, {"!BADKEY", "tail"}}},
+		{name: "non-string key consumes one element like slog", args: []any{42, "a", 1}, want: [][2]any{{"!BADKEY", 42}, {"a", 1}}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, collect(tc.args))
+		})
+	}
+}
+
+func TestPairsEarlyExit(t *testing.T) {
+	t.Parallel()
+
+	var got [][2]any
+	for k, v := range pairs([]any{"a", 1, "b", 2}) {
+		got = append(got, [2]any{k, v})
+		break
+	}
+
+	assert.Equal(t, [][2]any{{"a", 1}}, got)
+}
+
+func TestZeroLoggerWithDoesNotMutateOriginal(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	base := newZeroLogger(prodConfig(), &buf)
+	_ = base.With("component", "child")
+
+	base.Info(context.Background(), "hello")
+
+	entry := lastJSONLine(t, &buf)
+	assert.NotContains(t, entry, "component")
 }
