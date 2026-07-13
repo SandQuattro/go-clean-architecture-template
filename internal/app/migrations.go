@@ -39,8 +39,15 @@ func applyMigrations(ctx context.Context, cfg config.DB, log logger.Logger) erro
 		if err == nil {
 			break
 		}
-		log.Debug(ctx, fmt.Sprintf("migrate: postgres is trying to connect, attempts left: %d", attempts))
-		time.Sleep(defaultTimeout)
+		if attempts == 1 { // последняя попытка — пауза впустую не нужна
+			break
+		}
+		log.Debug(ctx, fmt.Sprintf("migrate: postgres is trying to connect, attempts left: %d", attempts-1))
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("migrate: cancelled while waiting for postgres: %w", ctx.Err())
+		case <-time.After(defaultTimeout):
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("migrate: postgres connect: %w", err)
@@ -60,11 +67,8 @@ func applyMigrations(ctx context.Context, cfg config.DB, log logger.Logger) erro
 	if err != nil {
 		return fmt.Errorf("migrate: provider: %w", err)
 	}
-	defer func() {
-		if cerr := provider.Close(); cerr != nil {
-			log.Error(ctx, "migrate: close provider", "error", cerr.Error())
-		}
-	}()
+	// provider.Close() не вызывается: он закрывает тот же db, который уже
+	// закрывает defer выше — второй Close был бы мёртвой веткой.
 
 	results, err := provider.Up(ctx)
 	if err != nil {
