@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"clean-arch-template/config"
 	"context"
 	"io"
 	"log/slog"
@@ -15,9 +14,9 @@ type slogLogger struct {
 
 var _ Logger = (*slogLogger)(nil)
 
-// newSlogLogger — реализация на stdlib slog: prod → JSON с ключом message,
-// иначе text с source-позициями; уровень из LOG_LEVEL, DEBUG=true → Debug.
-func newSlogLogger(cfg *config.Config, out io.Writer) *slogLogger {
+// newSlogLogger — реализация на stdlib slog: JSON=true → JSON с ключом message,
+// иначе text с source-позициями; уровень из cfg.Level, Debug=true → Debug.
+func newSlogLogger(cfg Config, out io.Writer) *slogLogger {
 	level := cfg.Level
 	if cfg.Debug {
 		level = slog.LevelDebug
@@ -25,7 +24,7 @@ func newSlogLogger(cfg *config.Config, out io.Writer) *slogLogger {
 
 	var handler slog.Handler
 
-	if cfg.Environment == "prod" {
+	if cfg.JSON {
 		renameMsgKey := func(groups []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.MessageKey {
 				a.Key = "message"

@@ -80,17 +80,17 @@ GOLANGCI_LINT = $(PROJECT_BIN)/golangci-lint
 
 .PHONY: .install-golangci-lint
 .install-golangci-lint:
-	[ -f $(PROJECT_BIN)/golangci-lint ] || curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(PROJECT_BIN) $(GOLANGCI_LINT_VERSION)
+	[ -f $(GOLANGCI_LINT) ] || GOBIN=$(PROJECT_BIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 .PHONY: lint
 lint: .install-golangci-lint  ## run linter
-	gofumpt -w ./..
+	$(GOLANGCI_LINT) fmt --config=./.golangci.yml
 	$(GOLANGCI_LINT) run ./... --config=./.golangci.yml
 
 .PHONY: lint-fast
 lint-fast: .install-golangci-lint ## run fast linter
-	gofumpt -w ./..
-	$(GOLANGCI_LINT) run ./... --fast --config=./.golangci.yml
+	$(GOLANGCI_LINT) fmt --config=./.golangci.yml
+	$(GOLANGCI_LINT) run ./... --fast-only --config=./.golangci.yml
 
 # ---------------------------------- MIGRATIONS ---------------------------------
 GOOSE_VERSION = v3.27.2

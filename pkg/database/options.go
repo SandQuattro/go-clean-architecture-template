@@ -40,6 +40,13 @@ func HealthCheckPeriod(period int) Option {
 	}
 }
 
+// Debug включает отладочное логирование SQL-запросов и событий пула.
+func Debug(enabled bool) Option {
+	return func(c *Postgres) {
+		c.debug = enabled
+	}
+}
+
 // WithLogger -.
 func WithLogger(l logger.Logger) Option {
 	return func(c *Postgres) {

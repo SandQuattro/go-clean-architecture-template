@@ -17,14 +17,31 @@ func NewUserUseCase(ur UserRepository) *UserUseCase {
 }
 
 func (uc *UserUseCase) FindAllUsers(ctx context.Context, cmd FindAllUsersCommand) ([]entity.User, error) {
-	if cmd.Page < 1 || cmd.Size < 1 {
-		return nil, entity.ErrInvalidPagination
+	offset, err := pageOffset(cmd)
+	if err != nil {
+		return nil, err
 	}
 
-	// Страницы нумеруются с 1: page=1 → строки [0, size).
-	offset := (cmd.Page - 1) * cmd.Size
-
 	return uc.userRepo.GetAllUsers(ctx, offset, cmd.Size)
+}
+
+func (uc *UserUseCase) FindAllUsersWithOrders(ctx context.Context, cmd FindAllUsersCommand) ([]entity.UserOrders, error) {
+	offset, err := pageOffset(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	return uc.userRepo.GetAllUsersWithOrders(ctx, offset, cmd.Size)
+}
+
+// pageOffset проверяет пагинацию и переводит номер страницы в смещение.
+// Страницы нумеруются с 1: page=1 → строки [0, size).
+func pageOffset(cmd FindAllUsersCommand) (int, error) {
+	if cmd.Page < 1 || cmd.Size < 1 {
+		return 0, entity.ErrInvalidPagination
+	}
+
+	return (cmd.Page - 1) * cmd.Size, nil
 }
 
 func (uc *UserUseCase) FindUserByID(ctx context.Context, cmd FindUserByIDCommand) (*entity.User, error) {
