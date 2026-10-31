@@ -1,16 +1,18 @@
 package app
 
 import (
+	"clean-arch-template/config"
+	"clean-arch-template/pkg/logger/loggertest"
 	"context"
 	"testing"
 	"time"
 
-	"clean-arch-template/config"
-	"clean-arch-template/pkg/logger/loggertest"
-
 	"github.com/stretchr/testify/require"
 )
 
+// Отменённый контекст должен доходить до goose: подключение и ожидание
+// advisory lock прерываются, а не висят. Без проброса ctx тест получил бы
+// ошибку подключения к закрытому порту вместо context.Canceled.
 func TestApplyMigrationsStopsOnCancelledContext(t *testing.T) {
 	t.Parallel()
 
@@ -19,18 +21,18 @@ func TestApplyMigrationsStopsOnCancelledContext(t *testing.T) {
 
 	cfg := config.DB{
 		DBHost:        "127.0.0.1",
-		DBPort:        1, // закрытый порт: ping гарантированно не проходит
+		DBPort:        1, // закрытый порт: подключение гарантированно не проходит
 		DBUser:        "user",
 		DBPassword:    "password",
 		DBName:        "demo",
 		SSLMode:       "disable",
-		MigrationsDir: "migrations",
+		MigrationsDir: "../../migrations",
 	}
 
 	start := time.Now()
 	err := applyMigrations(ctx, cfg, &loggertest.Fake{})
 
 	require.ErrorIs(t, err, context.Canceled)
-	require.Less(t, time.Since(start), defaultTimeout,
-		"отменённый контекст должен прерывать retry-паузы, а не пересиживать их")
+	require.Less(t, time.Since(start), time.Second,
+		"отменённый контекст должен прерывать применение миграций сразу")
 }

@@ -210,7 +210,9 @@ func TestUserRepository(t *testing.T) {
 			AddRow(1, "test1", []int64{10, 20}, []int64{100, 200}).
 			AddRow(2, "test2", nil, nil)
 
-		mockDb.ExpectQuery("SELECT (.+) FROM users").
+		// Оба агрегата упорядочены по o.id: порядок заказов детерминирован,
+		// а i-й id соответствует i-й сумме.
+		mockDb.ExpectQuery(`array_agg\(o\.id ORDER BY o\.id\)(.+)array_agg\(o\.amount ORDER BY o\.id\)`).
 			WithArgs(0, 10).
 			WillReturnRows(rows)
 
