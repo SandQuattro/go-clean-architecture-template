@@ -52,11 +52,13 @@ func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 }
 
 func (r *UserRepository) GetAllUsersWithOrders(ctx context.Context, offset, limit int) ([]entity.UserOrders, error) {
+	// Оба агрегата упорядочены по o.id: без ORDER BY порядок элементов
+	// массива не определён, а i-й id обязан соответствовать i-й сумме.
 	query := `
 		SELECT u.id,
 		       u.name,
-		       COALESCE(array_agg(o.id) FILTER (WHERE o.id IS NOT NULL), '{}') as order_ids,
-		       COALESCE(array_agg(o.amount) FILTER (WHERE o.id IS NOT NULL), '{}') as order_amounts
+		       COALESCE(array_agg(o.id ORDER BY o.id) FILTER (WHERE o.id IS NOT NULL), '{}') as order_ids,
+		       COALESCE(array_agg(o.amount ORDER BY o.id) FILTER (WHERE o.id IS NOT NULL), '{}') as order_amounts
 		FROM users u
 		LEFT JOIN orders o ON u.id = o.user_id
 		GROUP BY u.id, u.name

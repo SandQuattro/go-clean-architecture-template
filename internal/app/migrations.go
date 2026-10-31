@@ -7,20 +7,16 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
 )
 
-const (
-	defaultAttempts = 3
-	defaultTimeout  = time.Second
-)
-
 // applyMigrations применяет миграции при старте через goose. Любая ошибка
 // возвращается наверх — сервис не должен принимать трафик на битой схеме.
+// Доступность БД к этому моменту уже дождался database.New, поэтому
+// собственных повторов подключения здесь нет.
 // Session-lock (pg advisory lock) защищает от параллельного применения
 // несколькими репликами. В продакшене предпочтителен отдельный Job/initContainer.
 func applyMigrations(ctx context.Context, cfg config.DB, log logger.Logger) error {
@@ -33,25 +29,6 @@ func applyMigrations(ctx context.Context, cfg config.DB, log logger.Logger) erro
 			log.Error(ctx, "migrate: close db", "error", cerr.Error())
 		}
 	}()
-
-	for attempts := defaultAttempts; attempts > 0; attempts-- {
-		err = db.PingContext(ctx)
-		if err == nil {
-			break
-		}
-		if attempts == 1 { // последняя попытка — пауза впустую не нужна
-			break
-		}
-		log.Debug(ctx, fmt.Sprintf("migrate: postgres is trying to connect, attempts left: %d", attempts-1))
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("migrate: cancelled while waiting for postgres: %w", ctx.Err())
-		case <-time.After(defaultTimeout):
-		}
-	}
-	if err != nil {
-		return fmt.Errorf("migrate: postgres connect: %w", err)
-	}
 
 	sessionLocker, err := lock.NewPostgresSessionLocker()
 	if err != nil {

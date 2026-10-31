@@ -35,7 +35,9 @@ func SetupHumaConfig() huma.Config {
 
 // SetupRoutes регистрирует операции. Схемы запросов/ответов и параметры Huma
 // генерирует из Go-типов (см. schemas.go) — руками их не описываем, чтобы
-// контракт не расходился с кодом. Errors добавляет коды ошибок в OpenAPI.
+// контракт не расходился с кодом. Errors добавляет коды ошибок в OpenAPI;
+// 422 Huma объявляет сам, а 400 достижим только у операций с телом запроса
+// (неразбираемый JSON).
 func SetupRoutes(api huma.API, userHandler Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-users",
@@ -44,7 +46,7 @@ func SetupRoutes(api huma.API, userHandler Handler) {
 		Summary:     "list all users",
 		Description: "Get a page of users. Pages are 1-based.",
 		Tags:        []string{"Users"},
-		Errors:      []int{http.StatusBadRequest, http.StatusInternalServerError},
+		Errors:      []int{http.StatusInternalServerError},
 	}, userHandler.ListUsers)
 
 	huma.Register(api, huma.Operation{
@@ -54,7 +56,7 @@ func SetupRoutes(api huma.API, userHandler Handler) {
 		Summary:     "list users with orders",
 		Description: "Get a page of users with their orders. Pages are 1-based.",
 		Tags:        []string{"Users"},
-		Errors:      []int{http.StatusBadRequest, http.StatusInternalServerError},
+		Errors:      []int{http.StatusInternalServerError},
 	}, userHandler.ListUsersWithOrders)
 
 	huma.Register(api, huma.Operation{
@@ -64,7 +66,7 @@ func SetupRoutes(api huma.API, userHandler Handler) {
 		Summary:     "user by id",
 		Description: "Get a user by id.",
 		Tags:        []string{"Users"},
-		Errors:      []int{http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError},
+		Errors:      []int{http.StatusNotFound, http.StatusInternalServerError},
 	}, userHandler.FindUserByID)
 
 	huma.Register(api, huma.Operation{
