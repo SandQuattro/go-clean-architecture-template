@@ -29,6 +29,21 @@ func TestToUserListOutputFromEntity(t *testing.T) {
 	})
 }
 
+func TestToUserOrdersListOutputFromEntity(t *testing.T) {
+	users := []entity.UserOrders{
+		{ID: 1, Name: "User 1", Orders: []entity.Order{{ID: 10, UserID: 1, Amount: 500}}},
+		{ID: 2, Name: "User 2"},
+	}
+
+	result := ToUserOrdersListOutputFromEntity(users)
+
+	assert.Equal(t, []UserOrdersDTO{
+		{ID: 1, Name: "User 1", Orders: []OrderDTO{{ID: 10, Amount: 500}}},
+		{ID: 2, Name: "User 2", Orders: []OrderDTO{}},
+	}, result.Body.Users)
+	assert.NotNil(t, result.Body.Users[1].Orders, "без заказов — пустой массив, а не null")
+}
+
 func TestToUserOutputFromEntity(t *testing.T) {
 	t.Run("valid user", func(t *testing.T) {
 		user := &entity.User{

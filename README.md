@@ -47,7 +47,7 @@
 - [x] Добавить генерацию моков для интерфейсов
 - [x] Добавить tracing на обработчики (span-контекст пробрасывается вниз)
 - [x] Добавить unit тесты
-- [x] Добавить fuzzing тесты
+- [ ] Добавить fuzzing тесты
 - [x] Добавить integration тесты (CRUD + transfer)
 - [x] Добавить prometheus и grafana в docker-compose
 - [x] Добавить unit тесты на слой handler

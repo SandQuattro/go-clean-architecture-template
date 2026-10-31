@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"clean-arch-template/config"
 	"context"
 	"io"
 	"testing"
@@ -9,10 +8,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func benchConfig() *config.Config {
-	cfg := &config.Config{}
-	cfg.App.Environment = "prod"
-	return cfg
+func benchConfig() Config {
+	return Config{JSON: true}
 }
 
 func benchmarkInfo(b *testing.B, log Logger, ctx context.Context) {

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -25,6 +26,11 @@ var mockUsers = []entity.User{
 	},
 }
 
+// mockOrders — заказы есть только у первого пользователя.
+var mockOrders = map[int][]entity.Order{
+	1: {{ID: 10, UserID: 1, Amount: 500}},
+}
+
 func newTestAPI(t *testing.T) (humatest.TestAPI, *loggertest.Fake) {
 	t.Helper()
 
@@ -34,7 +40,7 @@ func newTestAPI(t *testing.T) (humatest.TestAPI, *loggertest.Fake) {
 	copy(users, mockUsers)
 
 	fakeLog := &loggertest.Fake{}
-	mockRepo := &mockUserRepository{users: users}
+	mockRepo := &mockUserRepository{users: users, orders: mockOrders}
 	userUC := usecase.NewUserUseCase(mockRepo)
 	SetupRoutes(api, NewUserHandler(userUC, fakeLog))
 
@@ -84,6 +90,54 @@ func TestListUsersSizeError(t *testing.T) {
 	resp := api.Get("/users/1/-1")
 	if resp.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("Expected status code %d for invalid parameters, got %d", http.StatusUnprocessableEntity, resp.Code)
+	}
+}
+
+func TestListUsersWithOrdersSuccess(t *testing.T) {
+	api, _ := newTestAPI(t)
+
+	resp := api.Get("/users-with-orders/1/10")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Expected status code %d, got %d", http.StatusOK, resp.Code)
+	}
+
+	var response struct {
+		Users []UserOrdersDTO `json:"users"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if len(response.Users) != len(mockUsers) {
+		t.Fatalf("Expected %d users, got %d", len(mockUsers), len(response.Users))
+	}
+
+	wantOrders := []OrderDTO{{ID: 10, Amount: 500}}
+	if got := response.Users[0].Orders; !slices.Equal(got, wantOrders) {
+		t.Errorf("User 1 orders: got %+v, want %+v", got, wantOrders)
+	}
+
+	// Пользователь без заказов получает пустой массив, а не null.
+	if got := response.Users[1].Orders; got == nil || len(got) != 0 {
+		t.Errorf("User 2 orders: expected empty array, got %#v", got)
+	}
+}
+
+func TestListUsersWithOrdersPageError(t *testing.T) {
+	api, _ := newTestAPI(t)
+
+	resp := api.Get("/users-with-orders/0/10")
+	if resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("Expected status code %d for invalid parameters, got %d", http.StatusUnprocessableEntity, resp.Code)
+	}
+}
+
+func TestListUsersWithOrdersInternalError(t *testing.T) {
+	api, _ := newTestAPI(t)
+
+	resp := api.Get("/users-with-orders/1/13") // sentinel-лимит: mock отдаёт internal error
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected 500, got %d", resp.Code)
 	}
 }
 
@@ -294,13 +348,22 @@ func TestInternalErrorIsLoggedAndMasked(t *testing.T) {
 // Каждый существующий аккаунт считается имеющим баланс mockBalance:
 // большие суммы дают entity.ErrInsufficientFunds.
 type mockUserRepository struct {
-	users []entity.User
+	users  []entity.User
+	orders map[int][]entity.Order
 }
 
 const mockBalance = 1000
 
-func (m *mockUserRepository) GetAllUsersWithOrders(_ context.Context, _, _ int) ([]entity.UserOrders, error) {
-	return nil, nil
+func (m *mockUserRepository) GetAllUsersWithOrders(_ context.Context, _, limit int) ([]entity.UserOrders, error) {
+	if limit == 13 {
+		return nil, errors.New("boom")
+	}
+
+	result := make([]entity.UserOrders, 0, len(m.users))
+	for _, user := range m.users {
+		result = append(result, entity.UserOrders{ID: user.ID, Name: user.Name, Orders: m.orders[user.ID]})
+	}
+	return result, nil
 }
 
 func (m *mockUserRepository) GetAllUsers(_ context.Context, _, limit int) ([]entity.User, error) {

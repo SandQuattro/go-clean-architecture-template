@@ -2,7 +2,6 @@
 package tracing
 
 import (
-	"clean-arch-template/config"
 	"clean-arch-template/pkg/logger"
 	"context"
 
@@ -16,11 +15,12 @@ import (
 
 const fraction = 0.6
 
-// InitOpenTelemetryGRPC oltp init.
-func InitOpenTelemetryGRPC(ctx context.Context, cfg *config.Config, log logger.Logger) (*trace.TracerProvider, error) {
+// InitOpenTelemetryGRPC oltp init: endpoint — адрес OTLP gRPC-коллектора,
+// serviceName — значение атрибута service.name во всех спанах.
+func InitOpenTelemetryGRPC(ctx context.Context, endpoint, serviceName string, log logger.Logger) (*trace.TracerProvider, error) {
 	exporter, err := otlptracegrpc.New(
 		ctx,
-		otlptracegrpc.WithEndpoint(cfg.URL),
+		otlptracegrpc.WithEndpoint(endpoint),
 		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {
@@ -31,7 +31,7 @@ func InitOpenTelemetryGRPC(ctx context.Context, cfg *config.Config, log logger.L
 	// labels/tags/resources that are common to all traces.
 	res := resource.NewWithAttributes(
 		semconv.SchemaURL,
-		semconv.ServiceNameKey.String(cfg.Name),
+		semconv.ServiceNameKey.String(serviceName),
 		// attribute.String("some-attribute", "some-value"), ...
 	)
 

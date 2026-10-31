@@ -83,6 +83,67 @@ func TestFindAllUsers(t *testing.T) {
 	}
 }
 
+func TestFindAllUsersWithOrders(t *testing.T) {
+	t.Parallel()
+
+	withOrders := []entity.UserOrders{{
+		ID:     1,
+		Name:   "A",
+		Orders: []entity.Order{{ID: 7, UserID: 1, Amount: 100}},
+	}}
+
+	tests := []struct {
+		name string
+		cmd  FindAllUsersCommand
+		mock func(repo *MockUserRepository)
+		res  []entity.UserOrders
+		err  error
+	}{
+		{
+			name: "second page starts right after the first",
+			cmd:  FindAllUsersCommand{Page: 2, Size: 10},
+			mock: func(repo *MockUserRepository) {
+				repo.EXPECT().GetAllUsersWithOrders(gomock.Any(), 10, 10).Return(withOrders, nil)
+			},
+			res: withOrders,
+		},
+		{
+			name: "zero page is rejected",
+			cmd:  FindAllUsersCommand{Page: 0, Size: 10},
+			mock: func(repo *MockUserRepository) {},
+			err:  entity.ErrInvalidPagination,
+		},
+		{
+			name: "zero size is rejected",
+			cmd:  FindAllUsersCommand{Page: 1, Size: 0},
+			mock: func(repo *MockUserRepository) {},
+			err:  entity.ErrInvalidPagination,
+		},
+		{
+			name: "repository error is propagated",
+			cmd:  FindAllUsersCommand{Page: 1, Size: 10},
+			mock: func(repo *MockUserRepository) {
+				repo.EXPECT().GetAllUsersWithOrders(gomock.Any(), 0, 10).Return(nil, errInternalServErr)
+			},
+			err: errInternalServErr,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			userUseCase, repo := newUseCase(t)
+			tc.mock(repo)
+
+			res, err := userUseCase.FindAllUsersWithOrders(context.Background(), tc.cmd)
+
+			require.Equal(t, tc.res, res)
+			require.ErrorIs(t, err, tc.err)
+		})
+	}
+}
+
 func TestFindUserByID(t *testing.T) {
 	t.Parallel()
 

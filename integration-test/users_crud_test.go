@@ -140,6 +140,35 @@ func TestListUsersInvalidPageRejected(t *testing.T) {
 	}
 }
 
+// Заказы через публичное API не создаются, поэтому проверяем форму ответа:
+// у каждого пользователя orders — массив (пустой, а не null).
+func TestListUsersWithOrders(t *testing.T) {
+	createUser(t, "integration-user-with-orders")
+
+	status, body := doJSON(t, http.MethodGet, baseURL+"/users-with-orders/1/100", nil)
+	if status != http.StatusOK {
+		t.Fatalf("list users with orders: expected status %d, got %d (%s)", http.StatusOK, status, body)
+	}
+
+	var list struct {
+		Users []struct {
+			ID     int               `json:"id"`
+			Orders []json.RawMessage `json:"orders"`
+		} `json:"users"`
+	}
+	if err := json.Unmarshal(body, &list); err != nil {
+		t.Fatalf("decode list response: %v", err)
+	}
+	if len(list.Users) == 0 {
+		t.Fatalf("list users with orders: expected at least one user")
+	}
+	for _, user := range list.Users {
+		if user.Orders == nil {
+			t.Fatalf("user %d: orders must be an array, got null or missing field", user.ID)
+		}
+	}
+}
+
 // Новые пользователи создаются с нулевым балансом, поэтому позитивный сценарий
 // перевода недостижим через публичное API — проверяем доменные ошибки.
 func TestTransferMoneyInsufficientFunds(t *testing.T) {

@@ -86,6 +86,21 @@ func (mr *MockUserUseCaseMockRecorder) FindAllUsers(ctx, cmd any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllUsers", reflect.TypeOf((*MockUserUseCase)(nil).FindAllUsers), ctx, cmd)
 }
 
+// FindAllUsersWithOrders mocks base method.
+func (m *MockUserUseCase) FindAllUsersWithOrders(ctx context.Context, cmd usecase.FindAllUsersCommand) ([]entity.UserOrders, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindAllUsersWithOrders", ctx, cmd)
+	ret0, _ := ret[0].([]entity.UserOrders)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindAllUsersWithOrders indicates an expected call of FindAllUsersWithOrders.
+func (mr *MockUserUseCaseMockRecorder) FindAllUsersWithOrders(ctx, cmd any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllUsersWithOrders", reflect.TypeOf((*MockUserUseCase)(nil).FindAllUsersWithOrders), ctx, cmd)
+}
+
 // FindUserByID mocks base method.
 func (m *MockUserUseCase) FindUserByID(ctx context.Context, cmd usecase.FindUserByIDCommand) (*entity.User, error) {
 	m.ctrl.T.Helper()

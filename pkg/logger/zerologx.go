@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"clean-arch-template/config"
 	"context"
 	"io"
 	"log/slog"
@@ -16,9 +15,9 @@ type zeroLogger struct {
 var _ Logger = (*zeroLogger)(nil)
 
 // newZeroLogger — реализация на rs/zerolog с теми же правилами, что slogx:
-// prod → JSON в out, иначе — ConsoleWriter; уровень из LOG_LEVEL, DEBUG=true → Debug.
-func newZeroLogger(cfg *config.Config, out io.Writer) *zeroLogger {
-	if cfg.Environment != "prod" {
+// JSON=true → JSON в out, иначе — ConsoleWriter; уровень из cfg.Level, Debug=true → Debug.
+func newZeroLogger(cfg Config, out io.Writer) *zeroLogger {
+	if !cfg.JSON {
 		out = zerolog.ConsoleWriter{Out: out}
 	}
 
@@ -29,7 +28,7 @@ func newZeroLogger(cfg *config.Config, out io.Writer) *zeroLogger {
 	return &zeroLogger{l: l}
 }
 
-func zerologLevel(cfg *config.Config) zerolog.Level {
+func zerologLevel(cfg Config) zerolog.Level {
 	if cfg.Debug {
 		return zerolog.DebugLevel
 	}

@@ -1,7 +1,6 @@
 package database
 
 import (
-	"clean-arch-template/config"
 	"clean-arch-template/pkg/logger"
 	"context"
 	"fmt"
@@ -12,13 +11,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func setupPoolConfig(cfg *config.Config, pg *Postgres, poolConfig *pgxpool.Config) {
+func setupPoolConfig(pg *Postgres, poolConfig *pgxpool.Config) {
 	poolConfig.MinConns = pg.minPoolSize // Keep warm connections for health checks and latency spikes
 	poolConfig.MaxConns = pg.maxPoolSize
 	poolConfig.ConnConfig.ConnectTimeout = time.Duration(pg.connTimeout) * time.Second
 	poolConfig.HealthCheckPeriod = time.Duration(pg.healthCheckPeriod) * time.Minute
 
-	if cfg.Debug {
+	if pg.debug {
 		poolConfig.ConnConfig.Tracer = &multitracer.Tracer{
 			QueryTracers: []pgx.QueryTracer{
 				&SQLQueryTracer{log: pg.logger},
