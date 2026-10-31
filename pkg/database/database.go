@@ -1,7 +1,6 @@
 package database
 
 import (
-	"clean-arch-template/config"
 	"clean-arch-template/pkg/logger"
 	"context"
 	"fmt"
@@ -27,6 +26,7 @@ type (
 		connAttempts      int32
 		connTimeout       int
 		healthCheckPeriod int
+		debug             bool
 
 		logger logger.Logger
 
@@ -37,7 +37,7 @@ type (
 )
 
 // New -.
-func New(cfg *config.Config, opts ...Option) (*Postgres, error) {
+func New(ctx context.Context, dsn string, opts ...Option) (*Postgres, error) {
 	pg := &Postgres{
 		maxPoolSize:       _defaultMaxPoolSize,
 		minPoolSize:       _defaultMinPoolSize,
@@ -52,29 +52,25 @@ func New(cfg *config.Config, opts ...Option) (*Postgres, error) {
 		opt(pg)
 	}
 
-	poolConfig, err := pgxpool.ParseConfig(cfg.DSN())
+	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("postgres - New - pgxpool.ParseConfig: %w", err)
 	}
 
 	// pgx pool settings
-	setupPoolConfig(cfg, pg, poolConfig)
+	//nolint:contextcheck // хуки пула без ctx в сигнатуре (AfterRelease, BeforeClose) логируют с context.Background()
+	setupPoolConfig(pg, poolConfig)
 
-	for pg.connAttempts > 0 {
-		pg.Pool, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
-		if err == nil {
-			break
-		}
-
-		pg.logger.Debug(context.Background(), fmt.Sprintf("Postgres is trying to connect to %s, attempts left: %d", cfg.DBHost, pg.connAttempts))
-
-		time.Sleep(time.Duration(pg.connTimeout) * time.Second)
-
-		pg.connAttempts--
+	// NewWithConfig не подключается к БД: соединения создаются в фоне,
+	// поэтому доступность проверяется явным Ping.
+	pg.Pool, err = pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return nil, fmt.Errorf("postgres - New - pgxpool.NewWithConfig: %w", err)
 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("postgres - New - connAttempts == 0: %w", err)
+	if err := pg.waitForConnection(ctx, poolConfig.ConnConfig.Host); err != nil {
+		pg.Pool.Close()
+		return nil, err
 	}
 
 	// will use dbGetter in repositories
@@ -83,6 +79,28 @@ func New(cfg *config.Config, opts ...Option) (*Postgres, error) {
 	pg.Transactor, pg.DBGetter = tx.NewTransactorFromPool(pg.Pool)
 
 	return pg, nil
+}
+
+// waitForConnection делает до connAttempts попыток Ping с паузой connTimeout
+// между ними; отмена ctx прерывает ожидание.
+func (p *Postgres) waitForConnection(ctx context.Context, host string) error {
+	for attempts := p.connAttempts; ; attempts-- {
+		err := p.Pool.Ping(ctx)
+		if err == nil {
+			return nil
+		}
+		if attempts <= 1 {
+			return fmt.Errorf("postgres - New - connAttempts == 0: %w", err)
+		}
+
+		p.logger.Debug(ctx, fmt.Sprintf("Postgres is trying to connect to %s, attempts left: %d", host, attempts-1))
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("postgres - New - waiting for connection: %w", ctx.Err())
+		case <-time.After(time.Duration(p.connTimeout) * time.Second):
+		}
+	}
 }
 
 // Close -.

@@ -19,7 +19,7 @@ Note: huma is pinned to v2.37.0 — it is the last version whose `humafiber` ada
 - `make tests` — unit tests (excludes `integration-test/`)
 - Single test: `go test -count=1 -run 'TestUserRepository' ./internal/usecase/repository/ -v`
 - `make test-coverage` — coverage with `-race`, opens HTML report
-- Integration tests (`integration-test/`) run as the `integration-tests` docker-compose service against the live app via env `HOST`/`PORT`; skip with `SKIP_INTEGRATION_TESTS=1`. They cover health probes, user CRUD, and transfer error paths (a successful transfer is unreachable via public API — new users start with zero balance)
+- Integration tests (`integration-test/`) run as the `integration-tests` docker-compose service against the live app via env `HOST`/`PORT`; skip with `SKIP_INTEGRATION_TESTS=1`. They cover health probes, user CRUD, the users-with-orders listing shape, and transfer error paths (a successful transfer is unreachable via public API — new users start with zero balance)
 - Load test: `k6 run load-test/load_test.js` (app must be running)
 
 ### Lint
@@ -44,7 +44,8 @@ Dependency rule (inner layers know nothing about outer ones): `entity` ← `usec
 - `internal/app` — composition root: `app.New(ctx, cfg, log)` connects DB, applies migrations, builds Fiber (with Read/Write/Idle timeouts) and middlewares, wires DI; `app.Run(ctx)` serves until the context is cancelled, then drains with `ShutdownTimeout` and closes the DB pool. Startup errors propagate to `main` — no silent zombie process.
 - `cmd/template/main.go` — config load, logger init, OTel init, `signal.NotifyContext`; tracer shuts down after the server drains.
 - `config` — cleanenv: `CONFIG_PATH` env, or `config/config.toml` / `config.json` from CWD, falling back to the package source dir; env overrides files. `DB.DSN()` is the single connection-string source (pool + migrator). Durations (HTTP timeouts) are env-only.
-- `pkg/database` — pgxpool wrapper: functional options (min/max pool, timeouts), connect retries, and the transactor.
+- `pkg/database` — pgxpool wrapper: `New(ctx, dsn, opts...)` with functional options (min/max pool, timeouts, debug tracing), connect retries via `Ping` (the wait is cancelled with ctx), and the transactor.
+- `pkg/*` and `version` do not import `config`: they take plain parameters (`logger.Config`, DSN, OTLP endpoint, service name); mapping from `config.Config` lives in `main` / `app`.
 
 ### Key conventions
 

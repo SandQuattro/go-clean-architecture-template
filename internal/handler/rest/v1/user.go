@@ -40,6 +40,23 @@ func (uh *UserHandler) ListUsers(ctx context.Context, req *ListUserRequest) (*Li
 	return ToUserListOutputFromEntity(users), nil
 }
 
+func (uh *UserHandler) ListUsersWithOrders(ctx context.Context, req *ListUserRequest) (*ListUserOrdersResponse, error) {
+	ctx, span := otel.Tracer(tracerName).Start(ctx, "ListUsersWithOrders")
+	defer span.End()
+
+	cmd := usecase.FindAllUsersCommand{
+		Page: req.Page,
+		Size: req.Size,
+	}
+
+	users, err := uh.userUC.FindAllUsersWithOrders(ctx, cmd)
+	if err != nil {
+		return nil, uh.mapError(ctx, err)
+	}
+
+	return ToUserOrdersListOutputFromEntity(users), nil
+}
+
 func (uh *UserHandler) FindUserByID(ctx context.Context, req *FindUserRequest) (*UserResponse, error) {
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "FindUserByID")
 	defer span.End()

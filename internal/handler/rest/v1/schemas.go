@@ -8,6 +8,17 @@ type (
 		Name string `json:"name" doc:"User name" example:"Mike"`
 	}
 
+	OrderDTO struct {
+		ID     int64 `json:"id"     doc:"Order ID" example:"1"`
+		Amount int64 `json:"amount" doc:"Amount in minimal currency units, 100 cents = 1$" example:"100"`
+	}
+
+	UserOrdersDTO struct {
+		ID     int        `json:"id"     doc:"User ID"   example:"1"`
+		Name   string     `json:"name"   doc:"User name" example:"Mike"`
+		Orders []OrderDTO `json:"orders" doc:"User orders; empty array if there are none"`
+	}
+
 	CreateUpdateUserBody struct {
 		Name string `json:"name" doc:"User name" example:"Mike" minLength:"1" maxLength:"255"`
 	}
@@ -40,6 +51,13 @@ type (
 		// Body обязательно (если есть тело запроса / ответа, json...), иначе поля уедут в headers
 		Body struct {
 			Users []UserDTO `json:"users"`
+		}
+	}
+
+	ListUserOrdersResponse struct {
+		// Body обязательно (если есть тело запроса / ответа, json...), иначе поля уедут в headers
+		Body struct {
+			Users []UserOrdersDTO `json:"users"`
 		}
 	}
 

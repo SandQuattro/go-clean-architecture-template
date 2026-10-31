@@ -4,9 +4,9 @@
 package logger
 
 import (
-	"clean-arch-template/config"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 )
 
@@ -24,8 +24,17 @@ const (
 	BackendZerolog = "zerolog"
 )
 
-// New — фабрика логгера по cfg.Log.Backend (env LOG_BACKEND).
-func New(cfg *config.Config) (Logger, error) {
+// Config — параметры логгера. Пакет не зависит от конфигурации приложения:
+// значения заполняет вызывающий код.
+type Config struct {
+	Backend string     // BackendSlog (по умолчанию, если пусто) или BackendZerolog
+	Level   slog.Level // минимальный уровень записи
+	Debug   bool       // true — уровень Debug независимо от Level
+	JSON    bool       // true — JSON-вывод, иначе человекочитаемый текст
+}
+
+// New — фабрика логгера по cfg.Backend.
+func New(cfg Config) (Logger, error) {
 	switch cfg.Backend {
 	case BackendSlog, "":
 		return newSlogLogger(cfg, os.Stdout), nil

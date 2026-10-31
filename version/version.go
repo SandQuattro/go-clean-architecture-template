@@ -1,7 +1,6 @@
 package version
 
 import (
-	"clean-arch-template/config"
 	"clean-arch-template/pkg/logger"
 	"context"
 	_ "embed"
@@ -10,6 +9,6 @@ import (
 
 var Version = "dev"
 
-func PrintVersion(cfg *config.Config, log logger.Logger) {
-	log.Info(context.Background(), fmt.Sprintf("Application %s version %s", cfg.Name, Version))
+func PrintVersion(appName string, log logger.Logger) {
+	log.Info(context.Background(), fmt.Sprintf("Application %s version %s", appName, Version))
 }

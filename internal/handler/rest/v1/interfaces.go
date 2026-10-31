@@ -10,6 +10,7 @@ import (
 
 type UserUseCase interface {
 	FindAllUsers(ctx context.Context, cmd usecase.FindAllUsersCommand) ([]entity.User, error)
+	FindAllUsersWithOrders(ctx context.Context, cmd usecase.FindAllUsersCommand) ([]entity.UserOrders, error)
 	FindUserByID(ctx context.Context, cmd usecase.FindUserByIDCommand) (*entity.User, error)
 	CreateUser(ctx context.Context, cmd usecase.CreateUpdateUserCommand) (*entity.User, error)
 	UpdateUser(ctx context.Context, cmd usecase.CreateUpdateUserCommand) (*entity.User, error)

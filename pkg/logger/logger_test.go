@@ -2,7 +2,6 @@ package logger
 
 import (
 	"bytes"
-	"clean-arch-template/config"
 	"context"
 	"encoding/json"
 	"testing"
@@ -12,10 +11,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func prodConfig() *config.Config {
-	cfg := &config.Config{}
-	cfg.App.Environment = "prod"
-	return cfg
+func prodConfig() Config {
+	return Config{JSON: true}
 }
 
 func ctxWithSpan(t *testing.T) context.Context {
@@ -98,11 +95,8 @@ func TestTraceArgsWithoutSpan(t *testing.T) {
 func TestSlogLoggerSourcePointsAtCaller(t *testing.T) {
 	t.Parallel()
 
-	cfg := &config.Config{}
-	cfg.App.Environment = "dev"
-
 	var buf bytes.Buffer
-	log := newSlogLogger(cfg, &buf)
+	log := newSlogLogger(Config{JSON: false}, &buf)
 
 	log.Info(context.Background(), "hello")
 
@@ -176,7 +170,7 @@ func TestNewFactory(t *testing.T) {
 			t.Parallel()
 
 			cfg := prodConfig()
-			cfg.Log.Backend = tc.backend
+			cfg.Backend = tc.backend
 
 			log, err := New(cfg)
 			if tc.wantErr {

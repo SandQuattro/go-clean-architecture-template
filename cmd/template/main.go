@@ -20,7 +20,12 @@ func main() {
 	}
 
 	// Initialize the logger
-	log, err := logger.New(cfg)
+	log, err := logger.New(logger.Config{
+		Backend: cfg.Backend,
+		Level:   cfg.Level,
+		Debug:   cfg.Debug,
+		JSON:    cfg.Environment == "prod",
+	})
 	if err != nil {
 		panic(fmt.Sprintf("failed to init logger: %v", err))
 	}
@@ -37,7 +42,7 @@ func run(cfg *config.Config, log logger.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	tracerProvider, err := tracing.InitOpenTelemetryGRPC(ctx, cfg, log)
+	tracerProvider, err := tracing.InitOpenTelemetryGRPC(ctx, cfg.URL, cfg.Name, log)
 	if err != nil {
 		return err
 	}

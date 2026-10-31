@@ -9,6 +9,7 @@ import (
 
 type Handler interface {
 	ListUsers(ctx context.Context, req *ListUserRequest) (*ListUserResponse, error)
+	ListUsersWithOrders(ctx context.Context, req *ListUserRequest) (*ListUserOrdersResponse, error)
 	FindUserByID(ctx context.Context, req *FindUserRequest) (*UserResponse, error)
 	CreateUser(ctx context.Context, req *CreateUserRequest) (*UserResponse, error)
 	UpdateUser(ctx context.Context, req *UpdateUserRequest) (*UserResponse, error)
@@ -45,6 +46,16 @@ func SetupRoutes(api huma.API, userHandler Handler) {
 		Tags:        []string{"Users"},
 		Errors:      []int{http.StatusBadRequest, http.StatusInternalServerError},
 	}, userHandler.ListUsers)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-users-with-orders",
+		Method:      http.MethodGet,
+		Path:        "/users-with-orders/{page}/{size}",
+		Summary:     "list users with orders",
+		Description: "Get a page of users with their orders. Pages are 1-based.",
+		Tags:        []string{"Users"},
+		Errors:      []int{http.StatusBadRequest, http.StatusInternalServerError},
+	}, userHandler.ListUsersWithOrders)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-user-by-id",

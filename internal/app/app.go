@@ -39,14 +39,14 @@ type App struct {
 // с недоступной БД или битой схемой.
 func New(ctx context.Context, cfg *config.Config, log logger.Logger) (*App, error) {
 	//nolint:contextcheck // стартовый лог до появления запроса: сигнатура фиксирована без ctx
-	version.PrintVersion(cfg, log)
+	version.PrintVersion(cfg.Name, log)
 
-	//nolint:contextcheck // database.New не принимает ctx: пул создаётся один раз при старте
-	pg, err := database.New(cfg,
+	pg, err := database.New(ctx, cfg.DSN(),
 		database.MaxPoolSize(cfg.PoolMax),
 		database.MinPoolSize(cfg.PoolMin),
 		database.ConnTimeout(cfg.ConnectTimeout),
 		database.HealthCheckPeriod(cfg.HealthCheckPeriod),
+		database.Debug(cfg.Debug),
 		database.WithLogger(log),
 	)
 	if err != nil {
