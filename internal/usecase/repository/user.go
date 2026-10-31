@@ -52,6 +52,8 @@ func (r *UserRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 }
 
 func (r *UserRepository) GetAllUsersWithOrders(ctx context.Context, offset, limit int) ([]entity.UserOrders, error) {
+	// Страница пользователей выбирается в подзапросе до JOIN: агрегируются
+	// заказы только этой страницы, а не всей таблицы users.
 	// Оба агрегата упорядочены по o.id: без ORDER BY порядок элементов
 	// массива не определён, а i-й id обязан соответствовать i-й сумме.
 	query := `
@@ -59,11 +61,15 @@ func (r *UserRepository) GetAllUsersWithOrders(ctx context.Context, offset, limi
 		       u.name,
 		       COALESCE(array_agg(o.id ORDER BY o.id) FILTER (WHERE o.id IS NOT NULL), '{}') as order_ids,
 		       COALESCE(array_agg(o.amount ORDER BY o.id) FILTER (WHERE o.id IS NOT NULL), '{}') as order_amounts
-		FROM users u
+		FROM (
+			SELECT id, name
+			FROM users
+			ORDER BY id
+			OFFSET $1 LIMIT $2
+		) u
 		LEFT JOIN orders o ON u.id = o.user_id
 		GROUP BY u.id, u.name
 		ORDER BY u.id
-		OFFSET $1 LIMIT $2
 	`
 
 	raw, err := r.db(ctx).Query(ctx, query, offset, limit)

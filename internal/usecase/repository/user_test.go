@@ -187,7 +187,9 @@ func TestUserRepository(t *testing.T) {
 			rows.AddRow(u.ID, u.Name, nil, nil)
 		}
 
-		mockDb.ExpectQuery("SELECT (.+) FROM users").
+		// Страница пользователей выбирается в подзапросе до JOIN и GROUP BY:
+		// агрегируется только она, а не вся таблица users.
+		mockDb.ExpectQuery(`FROM \(\s*SELECT (.+) FROM users (.+) OFFSET \$1 LIMIT \$2\s*\) u\s+LEFT JOIN orders`).
 			WithArgs(0, 10).
 			WillReturnRows(rows)
 
